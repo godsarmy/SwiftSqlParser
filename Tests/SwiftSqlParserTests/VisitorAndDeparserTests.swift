@@ -4,6 +4,8 @@ import Testing
 private struct CountingStatementVisitor: StatementVisitor {
     var rawCount = 0
     var selectCount = 0
+    var withCount = 0
+    var setOperationCount = 0
 
     mutating func visit(rawStatement: RawStatement) {
         rawCount += 1
@@ -11,6 +13,14 @@ private struct CountingStatementVisitor: StatementVisitor {
 
     mutating func visit(plainSelect: PlainSelect) {
         selectCount += 1
+    }
+
+    mutating func visit(withSelect: WithSelect) {
+        withCount += 1
+    }
+
+    mutating func visit(setOperationSelect: SetOperationSelect) {
+        setOperationCount += 1
     }
 }
 
@@ -22,6 +32,8 @@ func statementVisitorDispatchesExpectedType() {
     AstVisit.statement(statement, visitor: &visitor)
     #expect(visitor.rawCount == 1)
     #expect(visitor.selectCount == 0)
+    #expect(visitor.withCount == 0)
+    #expect(visitor.setOperationCount == 0)
 }
 
 @Test
@@ -38,4 +50,34 @@ func selectDeparserBuildsExpectedSql() {
 
     let sql = StatementDeparser().deparse(select)
     #expect(sql == "SELECT id FROM users WHERE active = 1")
+}
+
+@Test
+func deparserHandlesWithAndSetOperations() {
+    let withStatement = WithSelect(
+        expressions: [
+            CommonTableExpression(
+                name: "active_users",
+                statement: PlainSelect(
+                    selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],
+                    from: TableFromItem(name: "users")
+                )
+            )
+        ],
+        body: SetOperationSelect(
+            left: PlainSelect(
+                selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],
+                from: TableFromItem(name: "active_users")
+            ),
+            operation: .union,
+            isAll: true,
+            right: PlainSelect(
+                selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],
+                from: TableFromItem(name: "roles")
+            )
+        )
+    )
+
+    let sql = StatementDeparser().deparse(withStatement)
+    #expect(sql == "WITH active_users AS (SELECT id FROM users) SELECT id FROM active_users UNION ALL SELECT id FROM roles")
 }

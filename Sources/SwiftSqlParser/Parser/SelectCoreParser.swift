@@ -8,14 +8,85 @@ struct SelectCoreParser {
         self.tokens = try Tokenizer(sql: sql).tokenize()
     }
 
-    mutating func parse() throws -> PlainSelect {
+    private init(tokens: [Token]) {
+        self.tokens = tokens
+    }
+
+    mutating func parseStatement() throws -> any Statement {
+        let statement: any Statement
+        if matchKeyword("WITH") {
+            statement = try parseWithSelect()
+        } else {
+            statement = try parseSetOperationChain()
+        }
+
+        try ensureAtEnd()
+        return statement
+    }
+
+    private mutating func parseWithSelect() throws -> WithSelect {
+        var expressions: [CommonTableExpression] = []
+
+        while true {
+            let name = try consumeIdentifier()
+            try consumeKeyword("AS")
+            try consumeSymbol("(")
+            let cteTokens = try collectBalancedParenthesisContent()
+            var nested = SelectCoreParser(tokens: cteTokens)
+            let cteStatement = try nested.parseStatement()
+            expressions.append(CommonTableExpression(name: name, statement: cteStatement))
+
+            if match(symbol: ",") {
+                continue
+            }
+
+            break
+        }
+
+        let body = try parseSetOperationChain()
+        return WithSelect(expressions: expressions, body: body)
+    }
+
+    private mutating func parseSetOperationChain() throws -> any Statement {
+        var statement: any Statement = try parsePrimarySelectStatement()
+
+        while true {
+            let operation: SetOperationSelect.Operation
+            if matchKeyword("UNION") {
+                operation = .union
+            } else if matchKeyword("INTERSECT") {
+                operation = .intersect
+            } else if matchKeyword("EXCEPT") {
+                operation = .except
+            } else {
+                break
+            }
+
+            let isAll = matchKeyword("ALL")
+            let rhs = try parsePrimarySelectStatement()
+            statement = SetOperationSelect(left: statement, operation: operation, isAll: isAll, right: rhs)
+        }
+
+        return statement
+    }
+
+    private mutating func parsePrimarySelectStatement() throws -> any Statement {
+        if match(symbol: "(") {
+            let nestedTokens = try collectBalancedParenthesisContent()
+            var nested = SelectCoreParser(tokens: nestedTokens)
+            return try nested.parseStatement()
+        }
+
+        return try parsePlainSelect()
+    }
+
+    private mutating func parsePlainSelect() throws -> PlainSelect {
         try consumeKeyword("SELECT")
         let selectItems = try parseSelectItems()
         try consumeKeyword("FROM")
         let from = try parseFromItem()
         let joins = try parseJoins()
         let whereExpression = try parseWhereClauseIfPresent()
-        try ensureAtEnd()
 
         return PlainSelect(
             selectItems: selectItems,
@@ -60,7 +131,10 @@ struct SelectCoreParser {
             return nil
         }
 
-        let keywordBoundary = ["FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON"]
+        let keywordBoundary = [
+            "FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON",
+            "UNION", "INTERSECT", "EXCEPT", "ALL"
+        ]
         if keywordBoundary.contains(next.uppercased) {
             return nil
         }
@@ -72,10 +146,10 @@ struct SelectCoreParser {
     private mutating func parseFromItem() throws -> any FromItem {
         if match(symbol: "(") {
             let nestedTokens = try collectBalancedParenthesisContent()
-            var nested = try SelectCoreParser(tokens: nestedTokens)
-            let select = try nested.parse()
+            var nested = SelectCoreParser(tokens: nestedTokens)
+            let nestedStatement = try nested.parseStatement()
             let alias = try parseAliasIfPresent()
-            return SubqueryFromItem(statement: select, alias: alias)
+            return SubqueryFromItem(statement: nestedStatement, alias: alias)
         }
 
         let tableName = try consumeIdentifier()
@@ -223,10 +297,10 @@ struct SelectCoreParser {
 
     private mutating func parsePrimaryExpression() throws -> any Expression {
         if match(symbol: "(") {
-            if checkKeyword("SELECT") {
+            if checkKeyword("SELECT") || checkKeyword("WITH") {
                 let nestedTokens = try collectBalancedParenthesisContent()
-                var nested = try SelectCoreParser(tokens: nestedTokens)
-                let select = try nested.parse()
+                var nested = SelectCoreParser(tokens: nestedTokens)
+                let select = try nested.parseStatement()
                 return SubqueryExpression(statement: select)
             }
 
@@ -376,12 +450,6 @@ struct SelectCoreParser {
     }
 }
 
-private extension SelectCoreParser {
-    init(tokens: [Token]) throws {
-        self.tokens = tokens
-    }
-}
-
 private enum SelectParseFailure: Error {
     case expected(String)
     case unexpectedToken(String)
@@ -444,7 +512,7 @@ private struct Tokenizer {
             let nextIndex = sql.index(after: index)
             if nextIndex < sql.endIndex {
                 let pair = String([character, sql[nextIndex]])
-                if ["<>", "!=", ">=", "<="].contains(pair) {
+                if ["<>", "!=", ">=", "<=", "||"].contains(pair) {
                     tokens.append(Token(text: pair, kind: .symbol))
                     index = sql.index(after: nextIndex)
                     continue

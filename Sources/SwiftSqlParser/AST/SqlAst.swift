@@ -28,6 +28,63 @@ public struct PlainSelect: Statement, Sendable, Equatable {
     }
 }
 
+public struct CommonTableExpression: Sendable, Equatable {
+    public let name: String
+    public let statement: any Statement
+
+    public init(name: String, statement: any Statement) {
+        self.name = name
+        self.statement = statement
+    }
+
+    public static func == (lhs: CommonTableExpression, rhs: CommonTableExpression) -> Bool {
+        lhs.name == rhs.name
+            && String(describing: type(of: lhs.statement)) == String(describing: type(of: rhs.statement))
+    }
+}
+
+public struct WithSelect: Statement, Sendable, Equatable {
+    public let expressions: [CommonTableExpression]
+    public let body: any Statement
+
+    public init(expressions: [CommonTableExpression], body: any Statement) {
+        self.expressions = expressions
+        self.body = body
+    }
+
+    public static func == (lhs: WithSelect, rhs: WithSelect) -> Bool {
+        lhs.expressions == rhs.expressions
+            && String(describing: type(of: lhs.body)) == String(describing: type(of: rhs.body))
+    }
+}
+
+public struct SetOperationSelect: Statement, Sendable, Equatable {
+    public enum Operation: String, Sendable {
+        case union
+        case intersect
+        case except
+    }
+
+    public let left: any Statement
+    public let operation: Operation
+    public let isAll: Bool
+    public let right: any Statement
+
+    public init(left: any Statement, operation: Operation, isAll: Bool = false, right: any Statement) {
+        self.left = left
+        self.operation = operation
+        self.isAll = isAll
+        self.right = right
+    }
+
+    public static func == (lhs: SetOperationSelect, rhs: SetOperationSelect) -> Bool {
+        lhs.operation == rhs.operation
+            && lhs.isAll == rhs.isAll
+            && String(describing: type(of: lhs.left)) == String(describing: type(of: rhs.left))
+            && String(describing: type(of: lhs.right)) == String(describing: type(of: rhs.right))
+    }
+}
+
 public struct Join: Sendable, Equatable {
     public enum JoinType: String, Sendable {
         case inner

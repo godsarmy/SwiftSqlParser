@@ -1,11 +1,15 @@
 public protocol StatementVisitor {
     mutating func visit(rawStatement: RawStatement)
     mutating func visit(plainSelect: PlainSelect)
+    mutating func visit(withSelect: WithSelect)
+    mutating func visit(setOperationSelect: SetOperationSelect)
 }
 
 public extension StatementVisitor {
     mutating func visit(rawStatement: RawStatement) {}
     mutating func visit(plainSelect: PlainSelect) {}
+    mutating func visit(withSelect: WithSelect) {}
+    mutating func visit(setOperationSelect: SetOperationSelect) {}
 }
 
 public protocol ExpressionVisitor {
@@ -57,6 +61,16 @@ public enum AstVisit {
 
         if let select = statement as? PlainSelect {
             visitor.visit(plainSelect: select)
+            return
+        }
+
+        if let withSelect = statement as? WithSelect {
+            visitor.visit(withSelect: withSelect)
+            return
+        }
+
+        if let setOperation = statement as? SetOperationSelect {
+            visitor.visit(setOperationSelect: setOperation)
         }
     }
 

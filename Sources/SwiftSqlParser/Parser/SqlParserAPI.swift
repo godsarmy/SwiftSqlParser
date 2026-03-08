@@ -52,18 +52,19 @@ public struct SqlParser: Sendable {
         _ = options
         try validateSupportedSyntax(cleaned)
 
-        if cleaned.uppercased().hasPrefix("SELECT ") {
+        let uppercased = cleaned.uppercased()
+        if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("(") {
             do {
                 var selectParser = try SelectCoreParser(sql: cleaned)
-                return try selectParser.parse()
+                return try selectParser.parseStatement()
             } catch {
                 throw SqlParseError.unsupportedSyntax(
                     SqlDiagnostic(
                         code: .unsupportedSyntax,
-                        message: "Statement uses unsupported SELECT syntax.",
-                        normalizedMessage: "unsupported_syntax:select_core_parse_failure",
+                        message: "Statement uses unsupported query syntax.",
+                        normalizedMessage: "unsupported_syntax:query_parse_failure",
                         location: .init(line: 1, column: 1, offset: 0),
-                        token: "SELECT"
+                        token: "QUERY"
                     )
                 )
             }

@@ -30,8 +30,11 @@ func corpusSuccessStatementsParse() throws {
     for statement in statements {
         let parsed = try parseStatement(statement)
 
-        if statement.uppercased().hasPrefix("SELECT ") {
+        let upper = statement.uppercased()
+        if upper.hasPrefix("SELECT ") {
             #expect(parsed is PlainSelect)
+        } else if upper.hasPrefix("WITH ") {
+            #expect(parsed is WithSelect)
         } else {
             #expect(parsed is RawStatement)
         }
