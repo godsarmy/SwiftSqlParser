@@ -15,11 +15,11 @@ Reimplement JSqlParser concepts in Swift with:
 
 - `Sources/SwiftSqlParser/AST/` - AST protocols and node models
 - `Sources/SwiftSqlParser/Parser/` - parser entry API and statement-family parsers
-  - `SelectCoreParser.swift` - query parsing (`SELECT`, `WITH`, set ops)
-  - `DmlParser.swift` - `INSERT`, `UPDATE`, `DELETE`
-  - `DdlParser.swift` - basic DDL
-  - `SqlParserAPI.swift` - top-level dispatch + diagnostics shaping
-- `Sources/SwiftSqlParser/Visitors/` - visitor protocols and dispatch helpers
+  - `SelectCoreParser.swift` - query parsing (`SELECT`, `WITH`, `VALUES`, set ops, joins, window syntax)
+  - `DmlParser.swift` - `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `REPLACE`
+  - `DdlParser.swift` - table/view/index DDL
+  - `SqlParserAPI.swift` - top-level dispatch, utility statements, script splitting, diagnostics shaping
+- `Sources/SwiftSqlParser/Visitors/` - visitor protocols, dispatch helpers, and `TableNameFinder`
 - `Sources/SwiftSqlParser/Deparser/` - SQL serialization from AST
 - `Sources/SwiftSqlParserBenchmark/` - local benchmark executable
 - `Tests/SwiftSqlParserTests/` - unit/corpus/round-trip/dialect tests
@@ -31,6 +31,7 @@ Reimplement JSqlParser concepts in Swift with:
 3. AST changes should be additive-first; avoid breaking existing node names/fields.
 4. For new syntax support, ship parser + deparser + tests together.
 5. Keep unsupported syntax mapped to explicit diagnostics for parity tracking.
+6. If script parsing or recovery behavior changes, update both `parseStatements` and `parseScript` coverage.
 
 ## Dialect and Experimental Flags
 
@@ -51,10 +52,18 @@ Reimplement JSqlParser concepts in Swift with:
 2. Parse it in the correct parser file under `Parser/`.
 3. Add deparse path in `Deparser/`.
 4. Add visitor hooks in `Visitors/` if it is a statement/expression node.
-5. Add tests in `Tests/SwiftSqlParserTests/`:
+5. Update `TableNameFinder` when the new syntax introduces table references.
+6. Add tests in `Tests/SwiftSqlParserTests/`:
    - parse assertions
    - deparse assertion
    - regression/corpus coverage where relevant
+
+### Adding utility or script behavior
+
+1. Update `SqlParserAPI.swift` for top-level dispatch and script handling.
+2. Keep recovery behavior option-driven via `ParserOptions`.
+3. Add script-level diagnostics tests when delimiter handling or recovery changes.
+4. Update `Docs/SupportMatrix.md` when behavior becomes user-visible.
 
 ### Adding dialect-specific behavior
 

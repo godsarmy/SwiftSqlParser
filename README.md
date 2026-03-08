@@ -4,10 +4,13 @@ SwiftSqlParser parses SQL into a Swift AST with configurable dialect behavior.
 
 ## Current Status
 
-- Core query support: `SELECT`, `WITH`/CTE, set operations (`UNION`, `INTERSECT`, `EXCEPT`)
-- DML support: `INSERT`, `UPDATE`, `DELETE`
-- DDL support: `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE`, `TRUNCATE`
-- Option-driven dialect extensions (for example Postgres `ILIKE`, quoted identifiers)
+- Core query support: `SELECT`, `WITH`/CTE, `VALUES`, set operations, joins, `GROUP BY`, `HAVING`, `QUALIFY`, window functions, `ORDER BY`, `LIMIT`, `OFFSET`
+- DML support: `INSERT`, `UPDATE`, `DELETE`, dialect-gated `MERGE`, MySQL `REPLACE`, `RETURNING`, `ON CONFLICT`, `ON DUPLICATE KEY UPDATE`
+- DDL support: `CREATE TABLE`, `CREATE INDEX`, `CREATE VIEW`, `ALTER TABLE`, `DROP TABLE`, `TRUNCATE`
+- Utility statements: `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
+- Option-driven dialect extensions including Postgres `ILIKE` / `DISTINCT ON`, SQL Server `TOP`, Oracle alternative quoting, quoted identifiers, and dialect-gated `PIVOT` / `UNPIVOT`
+- Script parsing supports delimiter-aware splitting and optional unsupported-statement recovery
+- Ecosystem utilities include visitors/deparsers plus `TableNameFinder`
 
 ## Quick Start
 
@@ -16,12 +19,18 @@ import SwiftSqlParser
 
 let options = ParserOptions(
     dialectFeatures: [.postgres],
-    experimentalFeatures: [.postgresIlike]
+    experimentalFeatures: [.postgresIlike, .postgresDistinctOn]
 )
 
 let statement = try parseStatement("SELECT id FROM users WHERE name ILIKE 'a%'", options: options)
 let statements = try parseStatements("SELECT * FROM users;DELETE FROM users WHERE id = 1")
-let script = parseScript("SELECT * FROM users;;SELECT * FROM roles")
+let script = parseScript(
+    "SELECT 'a;b' FROM users;MATCH_RECOGNIZE (foo);SHOW TABLES",
+    options: ParserOptions(recoverUnsupportedStatements: true)
+)
+
+let utility = try parseStatement("EXPLAIN SELECT * FROM users")
+let tables = TableNameFinder().find(in: statement)
 ```
 
 ## Development
