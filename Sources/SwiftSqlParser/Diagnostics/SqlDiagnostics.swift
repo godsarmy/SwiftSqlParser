@@ -72,6 +72,19 @@ public struct StatementParseSlot: Sendable {
   }
 }
 
+public struct StatementParseResult: Sendable {
+  public let statement: (any Statement)?
+  public let diagnostic: SqlDiagnostic?
+  public let location: SqlSourceLocation
+
+  public init(statement: (any Statement)?, diagnostic: SqlDiagnostic?, location: SqlSourceLocation)
+  {
+    self.statement = statement
+    self.diagnostic = diagnostic
+    self.location = location
+  }
+}
+
 public struct StatementsParseResult: Sendable {
   public let slots: [StatementParseSlot]
   public let statements: [any Statement]

@@ -213,6 +213,20 @@ func tableNameFinderHandlesDmlAndDdlTargets() {
 }
 
 @Test
+func tableNameFinderCollectsTablesFromExpressions() throws {
+  let statement = try parseStatement(
+    "SELECT id FROM users WHERE EXISTS (SELECT role_id FROM roles WHERE roles.user_id = users.id)"
+  )
+  guard let select = statement as? PlainSelect, let expression = select.whereExpression else {
+    Issue.record("Expected where expression")
+    return
+  }
+
+  let names = TableNameFinder().find(in: expression)
+  #expect(names == ["roles", "users"])
+}
+
+@Test
 func selectDeparserBuildsExpectedSql() {
   let select = PlainSelect(
     selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],

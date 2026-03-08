@@ -96,15 +96,15 @@ Align `SwiftSqlParser` more closely with the behaviors described in:
 
 ### Milestone F: Add parse-result diagnostics API
 
-- [ ] Expose a reusable parse-result type for statements lists
-- [ ] Ensure callers can inspect diagnostics without relying on exceptions
-- [ ] Keep `parseStatement(...)` throwing for convenience, but add a non-throwing alternative if useful
+- [x] Expose a reusable parse-result type for statements lists
+- [x] Ensure callers can inspect diagnostics without relying on exceptions
+- [x] Keep `parseStatement(...)` throwing for convenience, but add a non-throwing alternative if useful
 
 ### Milestone G: Add expression-level table-name finding
 
-- [ ] Add `TableNameFinder.find(in expression: any Expression) -> [String]`
-- [ ] Reuse the existing expression traversal logic
-- [ ] Add tests for joins/subqueries inside expressions such as `EXISTS (...)`
+- [x] Add `TableNameFinder.find(in expression: any Expression) -> [String]`
+- [x] Reuse the existing expression traversal logic
+- [x] Add tests for joins/subqueries inside expressions such as `EXISTS (...)`
 
 ## Suggested Order
 
@@ -129,9 +129,9 @@ Align `SwiftSqlParser` more closely with the behaviors described in:
 
 ## Acceptance Checklist
 
-- [ ] Recoverable statement-list parsing exists and is tested
-- [ ] Unsupported recovery and parse-error recovery are distinct and documented
-- [ ] Default separator behavior is closer to JSqlParser usage docs
-- [ ] `GO`, `/`, and blank-line handling are verified with tests
-- [ ] Table-name finding works for both statements and expressions
+- [x] Recoverable statement-list parsing exists and is tested
+- [x] Unsupported recovery and parse-error recovery are distinct and documented
+- [x] Default separator behavior is closer to JSqlParser usage docs
+- [x] `GO`, `/`, and blank-line handling are verified with tests
+- [x] Table-name finding works for both statements and expressions
 - [ ] Public docs reflect the final behavior accurately

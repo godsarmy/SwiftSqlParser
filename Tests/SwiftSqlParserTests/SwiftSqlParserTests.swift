@@ -69,6 +69,14 @@ func utilityStatementsParseIntoDedicatedAstNodes() throws {
 }
 
 @Test
+func parseStatementResultCapturesDiagnosticsWithoutThrowing() {
+  let result = SqlParser().parseStatementResult("MATCH_RECOGNIZE (foo)")
+
+  #expect(result.statement == nil)
+  #expect(result.diagnostic?.normalizedMessage == "unsupported_syntax:match_recognize")
+}
+
+@Test
 func parseStatementFailsOnEmptyInput() {
   #expect(throws: SqlParseError.self) {
     let _ = try parseStatement("   ")

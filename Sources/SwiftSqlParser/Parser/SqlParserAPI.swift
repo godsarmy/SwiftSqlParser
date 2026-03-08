@@ -170,6 +170,31 @@ public struct SqlParser: Sendable {
     return RawStatement(sql: cleaned)
   }
 
+  public func parseStatementResult(_ sql: String, options: ParserOptions = .init())
+    -> StatementParseResult
+  {
+    do {
+      let statement = try parseStatement(sql, options: options)
+      return StatementParseResult(
+        statement: statement,
+        diagnostic: nil,
+        location: .init(line: 1, column: 1, offset: 0)
+      )
+    } catch let error as SqlParseError {
+      return StatementParseResult(
+        statement: nil, diagnostic: error.diagnostic, location: error.diagnostic.location)
+    } catch {
+      let diagnostic = SqlDiagnostic(
+        code: .unsupportedSyntax,
+        message: "Statement uses unsupported syntax.",
+        normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
+        location: .init(line: 1, column: 1, offset: 0)
+      )
+      return StatementParseResult(
+        statement: nil, diagnostic: diagnostic, location: diagnostic.location)
+    }
+  }
+
   public func parseStatements(_ sql: String, options: ParserOptions = .init()) throws
     -> [any Statement]
   {

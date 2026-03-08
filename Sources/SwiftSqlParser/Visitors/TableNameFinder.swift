@@ -6,11 +6,18 @@ public struct TableNameFinder {
     collector.visit(statement: statement)
     return Array(collector.names).sorted()
   }
+
+  public func find(in expression: any Expression) -> [String] {
+    var collector = Collector()
+    collector.visit(expression: expression)
+    return Array(collector.names).sorted()
+  }
 }
 
 private struct Collector {
   var names: Set<String> = []
   var cteNames: Set<String> = []
+  var aliases: Set<String> = []
 
   mutating func visit(statement: any Statement) {
     switch statement {
@@ -26,12 +33,14 @@ private struct Collector {
       _ = values
     case let withSelect as WithSelect:
       let previousCtes = cteNames
+      let previousAliases = aliases
       for expression in withSelect.expressions {
         cteNames.insert(expression.name)
         visit(statement: expression.statement)
       }
       visit(statement: withSelect.body)
       cteNames = previousCtes
+      aliases = previousAliases
     case let setOperation as SetOperationSelect:
       visit(statement: setOperation.left)
       visit(statement: setOperation.right)
@@ -99,9 +108,9 @@ private struct Collector {
   }
 
   mutating func visit(select: PlainSelect) {
-    select.selectItems.forEach { visit(selectItem: $0) }
     visit(fromItem: select.from)
     select.joins.forEach { visit(join: $0) }
+    select.selectItems.forEach { visit(selectItem: $0) }
     if let whereExpression = select.whereExpression { visit(expression: whereExpression) }
     select.groupByExpressions.forEach { visit(expression: $0) }
     if let havingExpression = select.havingExpression { visit(expression: havingExpression) }
@@ -119,10 +128,16 @@ private struct Collector {
   mutating func visit(fromItem: any FromItem) {
     switch fromItem {
     case let table as TableFromItem:
+      if let alias = table.alias {
+        aliases.insert(alias)
+      }
       if cteNames.contains(table.name) == false {
         names.insert(table.name)
       }
     case let subquery as SubqueryFromItem:
+      if let alias = subquery.alias {
+        aliases.insert(alias)
+      }
       visit(statement: subquery.statement)
     case let pivot as PivotFromItem:
       visit(fromItem: pivot.source)
@@ -195,6 +210,14 @@ private struct Collector {
 
   mutating func visit(expression: any Expression) {
     switch expression {
+    case let identifier as IdentifierExpression:
+      if let qualifier = identifier.name.split(separator: ".").first, identifier.name.contains(".")
+      {
+        let qualifierName = String(qualifier)
+        if aliases.contains(qualifierName) == false, cteNames.contains(qualifierName) == false {
+          names.insert(qualifierName)
+        }
+      }
     case let raw as RawExpression:
       _ = raw
     case let unary as UnaryExpression:
