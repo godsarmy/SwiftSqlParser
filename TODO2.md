@@ -232,12 +232,12 @@ This file tracks major feature gaps between `SwiftSqlParser` and `JSqlParser` an
 
 ### Milestone 6: Vendor-heavy features
 
-- [ ] Add `MERGE`
-- [ ] Add `UPSERT` / `REPLACE` where appropriate
-- [ ] Add `PIVOT` / `UNPIVOT`
-- [ ] Add more PostgreSQL-specific syntax beyond `ILIKE`
-- [ ] Add more SQL Server / MySQL / Oracle-specific constructs behind parser options
-- [ ] Add enabled-vs-disabled tests for dialect-gated syntax
+- [x] Add `MERGE`
+- [x] Add `UPSERT` / `REPLACE` where appropriate
+- [x] Add `PIVOT` / `UNPIVOT`
+- [x] Add more PostgreSQL-specific syntax beyond `ILIKE`
+- [x] Add more SQL Server / MySQL / Oracle-specific constructs behind parser options
+- [x] Add enabled-vs-disabled tests for dialect-gated syntax
 
 ### Milestone 7: Utility statements and scripting
 

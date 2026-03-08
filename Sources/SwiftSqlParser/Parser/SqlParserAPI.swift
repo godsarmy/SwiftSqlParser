@@ -1,273 +1,307 @@
 import Foundation
 
 public struct RawStatement: Statement, Equatable, Sendable {
-    public let sql: String
+  public let sql: String
 
-    public init(sql: String) {
-        self.sql = sql
-    }
+  public init(sql: String) {
+    self.sql = sql
+  }
 }
 
 public enum SqlParseError: Error, Equatable, Sendable {
-    case emptyInput(SqlDiagnostic)
-    case emptyStatement(SqlDiagnostic)
-    case unsupportedSyntax(SqlDiagnostic)
+  case emptyInput(SqlDiagnostic)
+  case emptyStatement(SqlDiagnostic)
+  case unsupportedSyntax(SqlDiagnostic)
 
-    public var diagnostic: SqlDiagnostic {
-        switch self {
-        case let .emptyInput(diagnostic):
-            diagnostic
-        case let .emptyStatement(diagnostic):
-            diagnostic
-        case let .unsupportedSyntax(diagnostic):
-            diagnostic
-        }
+  public var diagnostic: SqlDiagnostic {
+    switch self {
+    case .emptyInput(let diagnostic):
+      diagnostic
+    case .emptyStatement(let diagnostic):
+      diagnostic
+    case .unsupportedSyntax(let diagnostic):
+      diagnostic
     }
+  }
 
-    public var normalizedMessage: String {
-        diagnostic.normalizedMessage
-    }
+  public var normalizedMessage: String {
+    diagnostic.normalizedMessage
+  }
 }
 
 public struct SqlParser: Sendable {
-    public let strategy: GrammarStrategy
+  public let strategy: GrammarStrategy
 
-    public init(strategy: GrammarStrategy = .init()) {
-        self.strategy = strategy
+  public init(strategy: GrammarStrategy = .init()) {
+    self.strategy = strategy
+  }
+
+  public func parseStatement(_ sql: String, options: ParserOptions = .init()) throws
+    -> any Statement
+  {
+    let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.isEmpty == false else {
+      throw SqlParseError.emptyInput(
+        SqlDiagnostic(
+          code: .emptyInput,
+          message: "Input SQL is empty.",
+          normalizedMessage: "empty_input:input sql is empty",
+          location: .init(line: 1, column: 1, offset: 0)
+        )
+      )
     }
 
-    public func parseStatement(_ sql: String, options: ParserOptions = .init()) throws -> any Statement {
-        let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleaned.isEmpty == false else {
-            throw SqlParseError.emptyInput(
-                SqlDiagnostic(
-                    code: .emptyInput,
-                    message: "Input SQL is empty.",
-                    normalizedMessage: "empty_input:input sql is empty",
-                    location: .init(line: 1, column: 1, offset: 0)
-                )
+    _ = options
+    try validateSupportedSyntax(cleaned, options: options)
+
+    let uppercased = cleaned.uppercased()
+
+    if uppercased.hasPrefix("INSERT ") || uppercased.hasPrefix("UPDATE ")
+      || uppercased.hasPrefix("DELETE ") || uppercased.hasPrefix("MERGE ")
+      || uppercased.hasPrefix("REPLACE ")
+    {
+      do {
+        var dmlParser = try DmlParser(sql: cleaned, options: options)
+        return try dmlParser.parseStatement()
+      } catch {
+        throw SqlParseError.unsupportedSyntax(
+          SqlDiagnostic(
+            code: .unsupportedSyntax,
+            message: "Statement uses unsupported DML syntax.",
+            normalizedMessage: "unsupported_syntax:dml_parse_failure",
+            location: .init(line: 1, column: 1, offset: 0),
+            token: "DML"
+          )
+        )
+      }
+    }
+
+    if uppercased.hasPrefix("CREATE ") || uppercased.hasPrefix("ALTER ")
+      || uppercased.hasPrefix("DROP ") || uppercased.hasPrefix("TRUNCATE ")
+    {
+      do {
+        var ddlParser = try DdlParser(sql: cleaned, options: options)
+        return try ddlParser.parseStatement()
+      } catch {
+        throw SqlParseError.unsupportedSyntax(
+          SqlDiagnostic(
+            code: .unsupportedSyntax,
+            message: "Statement uses unsupported DDL syntax.",
+            normalizedMessage: "unsupported_syntax:ddl_parse_failure",
+            location: .init(line: 1, column: 1, offset: 0),
+            token: "DDL"
+          )
+        )
+      }
+    }
+
+    if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ")
+      || uppercased.hasPrefix("VALUES ") || uppercased.hasPrefix("(")
+    {
+      do {
+        var selectParser = try SelectCoreParser(sql: cleaned, options: options)
+        return try selectParser.parseStatement()
+      } catch {
+        throw SqlParseError.unsupportedSyntax(
+          SqlDiagnostic(
+            code: .unsupportedSyntax,
+            message: "Statement uses unsupported query syntax.",
+            normalizedMessage: "unsupported_syntax:query_parse_failure",
+            location: .init(line: 1, column: 1, offset: 0),
+            token: "QUERY"
+          )
+        )
+      }
+    }
+
+    return RawStatement(sql: cleaned)
+  }
+
+  public func parseStatements(_ sql: String, options: ParserOptions = .init()) throws
+    -> [any Statement]
+  {
+    let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.isEmpty == false else {
+      throw SqlParseError.emptyInput(
+        SqlDiagnostic(
+          code: .emptyInput,
+          message: "Input SQL is empty.",
+          normalizedMessage: "empty_input:input sql is empty",
+          location: .init(line: 1, column: 1, offset: 0)
+        )
+      )
+    }
+
+    let statements: [String] = options.scriptSeparators.reduce([cleaned]) { partial, separator in
+      partial.flatMap { splitStatementChunks($0, separator: separator) }
+    }
+    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    let containsEmptyChunk = statements.contains(where: \String.isEmpty)
+    if containsEmptyChunk {
+      let firstEmpty = statements.firstIndex(of: "") ?? 0
+      throw SqlParseError.emptyStatement(
+        SqlDiagnostic(
+          code: .emptyStatement,
+          message: "Statement at index \(firstEmpty) is empty.",
+          normalizedMessage: "empty_statement:statement chunk is empty",
+          location: .init(line: 1, column: firstEmpty + 1, offset: firstEmpty)
+        )
+      )
+    }
+
+    return try statements.map { try parseStatement($0, options: options) }
+  }
+
+  public func parseScript(_ sql: String, options: ParserOptions = .init()) -> ScriptParseResult {
+    let separator = options.scriptSeparators.first ?? ";"
+    if separator.isEmpty {
+      return ScriptParseResult(
+        statements: [],
+        diagnostics: [
+          SqlDiagnostic(
+            code: .emptyStatement,
+            message: "Script separator cannot be empty.",
+            normalizedMessage: "empty_statement:script separator cannot be empty",
+            location: .init(line: 1, column: 1, offset: 0)
+          )
+        ])
+    }
+
+    let chunks = splitStatementChunks(sql, separator: separator)
+    var line = 1
+    var column = 1
+    var offset = 0
+    var statements: [any Statement] = []
+    var diagnostics: [SqlDiagnostic] = []
+
+    for chunk in chunks {
+      let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.isEmpty {
+        diagnostics.append(
+          SqlDiagnostic(
+            code: .emptyStatement,
+            message: "Script statement is empty.",
+            normalizedMessage: "empty_statement:script statement is empty",
+            location: .init(line: line, column: column, offset: offset),
+            token: separator
+          )
+        )
+      } else {
+        do {
+          statements.append(try parseStatement(trimmed, options: options))
+        } catch let error as SqlParseError {
+          diagnostics.append(error.diagnostic)
+        } catch {
+          diagnostics.append(
+            SqlDiagnostic(
+              code: .unsupportedSyntax,
+              message: "Statement uses unsupported syntax.",
+              normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
+              location: .init(line: line, column: column, offset: offset)
             )
+          )
         }
+      }
 
-        _ = options
-        try validateSupportedSyntax(cleaned)
-
-        let uppercased = cleaned.uppercased()
-
-        if uppercased.hasPrefix("INSERT ") || uppercased.hasPrefix("UPDATE ") || uppercased.hasPrefix("DELETE ") {
-            do {
-                var dmlParser = try DmlParser(sql: cleaned, options: options)
-                return try dmlParser.parseStatement()
-            } catch {
-                throw SqlParseError.unsupportedSyntax(
-                    SqlDiagnostic(
-                        code: .unsupportedSyntax,
-                        message: "Statement uses unsupported DML syntax.",
-                        normalizedMessage: "unsupported_syntax:dml_parse_failure",
-                        location: .init(line: 1, column: 1, offset: 0),
-                        token: "DML"
-                    )
-                )
-            }
+      for character in chunk {
+        offset += 1
+        if character == "\n" {
+          line += 1
+          column = 1
+        } else {
+          column += 1
         }
+      }
 
-        if uppercased.hasPrefix("CREATE ") || uppercased.hasPrefix("ALTER ") || uppercased.hasPrefix("DROP ") || uppercased.hasPrefix("TRUNCATE ") {
-            do {
-                var ddlParser = try DdlParser(sql: cleaned, options: options)
-                return try ddlParser.parseStatement()
-            } catch {
-                throw SqlParseError.unsupportedSyntax(
-                    SqlDiagnostic(
-                        code: .unsupportedSyntax,
-                        message: "Statement uses unsupported DDL syntax.",
-                        normalizedMessage: "unsupported_syntax:ddl_parse_failure",
-                        location: .init(line: 1, column: 1, offset: 0),
-                        token: "DDL"
-                    )
-                )
-            }
-        }
-
-        if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("VALUES ") || uppercased.hasPrefix("(") {
-            do {
-                var selectParser = try SelectCoreParser(sql: cleaned, options: options)
-                return try selectParser.parseStatement()
-            } catch {
-                throw SqlParseError.unsupportedSyntax(
-                    SqlDiagnostic(
-                        code: .unsupportedSyntax,
-                        message: "Statement uses unsupported query syntax.",
-                        normalizedMessage: "unsupported_syntax:query_parse_failure",
-                        location: .init(line: 1, column: 1, offset: 0),
-                        token: "QUERY"
-                    )
-                )
-            }
-        }
-
-        return RawStatement(sql: cleaned)
+      offset += separator.count
+      column += separator.count
     }
 
-    public func parseStatements(_ sql: String, options: ParserOptions = .init()) throws -> [any Statement] {
-        let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleaned.isEmpty == false else {
-            throw SqlParseError.emptyInput(
-                SqlDiagnostic(
-                    code: .emptyInput,
-                    message: "Input SQL is empty.",
-                    normalizedMessage: "empty_input:input sql is empty",
-                    location: .init(line: 1, column: 1, offset: 0)
-                )
-            )
-        }
+    return ScriptParseResult(statements: statements, diagnostics: diagnostics)
+  }
 
-        let statements: [String] = options.scriptSeparators.reduce([cleaned]) { partial, separator in
-            partial.flatMap { splitStatementChunks($0, separator: separator) }
-        }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-        let containsEmptyChunk = statements.contains(where: \String.isEmpty)
-        if containsEmptyChunk {
-            let firstEmpty = statements.firstIndex(of: "") ?? 0
-            throw SqlParseError.emptyStatement(
-                SqlDiagnostic(
-                    code: .emptyStatement,
-                    message: "Statement at index \(firstEmpty) is empty.",
-                    normalizedMessage: "empty_statement:statement chunk is empty",
-                    location: .init(line: 1, column: firstEmpty + 1, offset: firstEmpty)
-                )
-            )
-        }
-
-        return try statements.map { try parseStatement($0, options: options) }
+  private func splitStatementChunks(_ input: String, separator: String) -> [String] {
+    guard separator.isEmpty == false else {
+      return [input]
     }
 
-    public func parseScript(_ sql: String, options: ParserOptions = .init()) -> ScriptParseResult {
-        let separator = options.scriptSeparators.first ?? ";"
-        if separator.isEmpty {
-            return ScriptParseResult(statements: [], diagnostics: [
-                SqlDiagnostic(
-                    code: .emptyStatement,
-                    message: "Script separator cannot be empty.",
-                    normalizedMessage: "empty_statement:script separator cannot be empty",
-                    location: .init(line: 1, column: 1, offset: 0)
-                )
-            ])
-        }
+    var parts: [String] = []
+    parts.reserveCapacity(max(1, input.count / max(separator.count, 1)))
 
-        let chunks = splitStatementChunks(sql, separator: separator)
-        var line = 1
-        var column = 1
-        var offset = 0
-        var statements: [any Statement] = []
-        var diagnostics: [SqlDiagnostic] = []
+    var start = input.startIndex
+    while let range = input.range(of: separator, range: start..<input.endIndex) {
+      parts.append(String(input[start..<range.lowerBound]))
+      start = range.upperBound
+    }
+    parts.append(String(input[start..<input.endIndex]))
+    return parts
+  }
 
-        for chunk in chunks {
-            let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                diagnostics.append(
-                    SqlDiagnostic(
-                        code: .emptyStatement,
-                        message: "Script statement is empty.",
-                        normalizedMessage: "empty_statement:script statement is empty",
-                        location: .init(line: line, column: column, offset: offset),
-                        token: separator
-                    )
-                )
-            } else {
-                do {
-                    statements.append(try parseStatement(trimmed, options: options))
-                } catch let error as SqlParseError {
-                    diagnostics.append(error.diagnostic)
-                } catch {
-                    diagnostics.append(
-                        SqlDiagnostic(
-                            code: .unsupportedSyntax,
-                            message: "Statement uses unsupported syntax.",
-                            normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
-                            location: .init(line: line, column: column, offset: offset)
-                        )
-                    )
-                }
-            }
+  private func validateSupportedSyntax(_ sql: String, options: ParserOptions) throws {
+    let uppercase = sql.uppercased()
+    var unsupportedRules: [(token: String, gap: String)] = []
 
-            for character in chunk {
-                offset += 1
-                if character == "\n" {
-                    line += 1
-                    column = 1
-                } else {
-                    column += 1
-                }
-            }
-
-            offset += separator.count
-            column += separator.count
-        }
-
-        return ScriptParseResult(statements: statements, diagnostics: diagnostics)
+    if uppercase.contains("MERGE"),
+      !(options.experimentalFeatures.contains(.mergeStatements)
+        && (options.dialectFeatures.contains(.sqlServer)
+          || options.dialectFeatures.contains(.oracle)))
+    {
+      unsupportedRules.append(("MERGE", "merge_statement"))
     }
 
-    private func splitStatementChunks(_ input: String, separator: String) -> [String] {
-        guard separator.isEmpty == false else {
-            return [input]
-        }
-
-        var parts: [String] = []
-        parts.reserveCapacity(max(1, input.count / max(separator.count, 1)))
-
-        var start = input.startIndex
-        while let range = input.range(of: separator, range: start..<input.endIndex) {
-            parts.append(String(input[start..<range.lowerBound]))
-            start = range.upperBound
-        }
-        parts.append(String(input[start..<input.endIndex]))
-        return parts
+    if uppercase.contains("PIVOT"), !uppercase.contains("UNPIVOT"),
+      !(options.experimentalFeatures.contains(.pivotSyntax)
+        && (options.dialectFeatures.contains(.sqlServer)
+          || options.dialectFeatures.contains(.oracle)))
+    {
+      unsupportedRules.append(("PIVOT", "pivot_clause"))
     }
 
-    private func validateSupportedSyntax(_ sql: String) throws {
-        let uppercase = sql.uppercased()
-        let unsupportedRules: [(token: String, gap: String)] = [
-            ("MERGE", "merge_statement"),
-            ("PIVOT", "pivot_clause"),
-            ("UNPIVOT", "unpivot_clause"),
-            ("MATCH_RECOGNIZE", "match_recognize")
-        ]
-
-        for rule in unsupportedRules where uppercase.contains(rule.token) {
-            throw SqlParseError.unsupportedSyntax(
-                SqlDiagnostic(
-                    code: .unsupportedSyntax,
-                    message: "Unsupported syntax token '\(rule.token)'.",
-                    normalizedMessage: "unsupported_syntax:\(rule.gap)",
-                    location: .init(line: 1, column: 1, offset: 0),
-                    token: rule.token
-                )
-            )
-        }
+    if uppercase.contains("UNPIVOT"),
+      !(options.experimentalFeatures.contains(.pivotSyntax)
+        && (options.dialectFeatures.contains(.sqlServer)
+          || options.dialectFeatures.contains(.oracle)))
+    {
+      unsupportedRules.append(("UNPIVOT", "unpivot_clause"))
     }
+
+    unsupportedRules.append(("MATCH_RECOGNIZE", "match_recognize"))
+
+    for rule in unsupportedRules where uppercase.contains(rule.token) {
+      throw SqlParseError.unsupportedSyntax(
+        SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "Unsupported syntax token '\(rule.token)'.",
+          normalizedMessage: "unsupported_syntax:\(rule.gap)",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: rule.token
+        )
+      )
+    }
+  }
 }
 
 public func parseStatement(
-    _ sql: String,
-    options: ParserOptions = .init(),
-    strategy: GrammarStrategy = .init()
+  _ sql: String,
+  options: ParserOptions = .init(),
+  strategy: GrammarStrategy = .init()
 ) throws -> any Statement {
-    try SqlParser(strategy: strategy).parseStatement(sql, options: options)
+  try SqlParser(strategy: strategy).parseStatement(sql, options: options)
 }
 
 public func parseStatements(
-    _ sql: String,
-    options: ParserOptions = .init(),
-    strategy: GrammarStrategy = .init()
+  _ sql: String,
+  options: ParserOptions = .init(),
+  strategy: GrammarStrategy = .init()
 ) throws -> [any Statement] {
-    try SqlParser(strategy: strategy).parseStatements(sql, options: options)
+  try SqlParser(strategy: strategy).parseStatements(sql, options: options)
 }
 
 public func parseScript(
-    _ sql: String,
-    options: ParserOptions = .init(),
-    strategy: GrammarStrategy = .init()
+  _ sql: String,
+  options: ParserOptions = .init(),
+  strategy: GrammarStrategy = .init()
 ) -> ScriptParseResult {
-    SqlParser(strategy: strategy).parseScript(sql, options: options)
+  SqlParser(strategy: strategy).parseScript(sql, options: options)
 }

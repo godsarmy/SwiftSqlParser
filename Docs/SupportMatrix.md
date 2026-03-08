@@ -11,6 +11,8 @@ This matrix tracks currently implemented parser support in SwiftSqlParser.
 | `VALUES` query | Supported | top-level `VALUES (...)` and nested values subqueries |
 | Set operations | Supported | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT` |
 | `INSERT` | Supported | `VALUES`, `DEFAULT VALUES`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`, `ON DUPLICATE KEY UPDATE` |
+| `MERGE` | Supported | dialect-gated SQL Server / Oracle style `MERGE INTO ... USING ...` |
+| `REPLACE` | Supported | dialect-gated MySQL `REPLACE INTO ...` |
 | `UPDATE` | Supported | `UPDATE ... SET ... [FROM ...] [WHERE ...] [RETURNING ...]` |
 | `DELETE` | Supported | `DELETE FROM ... [USING ...] [WHERE ...] [RETURNING ...]` |
 | `CREATE TABLE` | Supported | columns with defaults/constraints plus table `PRIMARY KEY` / `FOREIGN KEY` / `CHECK` constraints |
@@ -30,6 +32,12 @@ Dialect behavior is option-driven and may require both a dialect flag and an exp
 | MySQL/BigQuery/Snowflake backtick identifiers (`` `name` ``) | `.mysql`/`.bigQuery`/`.snowflake` | `.quotedIdentifiers` | Supported |
 | ANSI quoted identifiers (`"name"`) | any | `.quotedIdentifiers` | Supported |
 | Postgres `ILIKE` | `.postgres` | `.postgresIlike` | Supported |
+| Postgres `DISTINCT ON` | `.postgres` | `.postgresDistinctOn` | Supported |
+| SQL Server `TOP` | `.sqlServer` | `.sqlServerTop` | Supported |
+| Oracle alternative quoting (`q'[...]'`) | `.oracle` | `.oracleAlternativeQuoting` | Supported |
+| SQL Server/Oracle `MERGE` | `.sqlServer`/`.oracle` | `.mergeStatements` | Supported |
+| MySQL `REPLACE` | `.mysql` | `.replaceStatements` | Supported |
+| SQL Server/Oracle `PIVOT` / `UNPIVOT` | `.sqlServer`/`.oracle` | `.pivotSyntax` | Supported |
 
 ## Expression Features
 
@@ -53,6 +61,8 @@ Dialect behavior is option-driven and may require both a dialect flag and an exp
 | Natural joins | Supported | `NATURAL JOIN`, `NATURAL LEFT/RIGHT/FULL JOIN` |
 | USING joins | Supported | `JOIN ... USING (...)` |
 | APPLY joins | Supported | `CROSS APPLY`, `OUTER APPLY` |
+| Pivoted sources | Supported | `FROM ... PIVOT (...) alias` |
+| Unpivoted sources | Supported | `FROM ... UNPIVOT (...) alias` |
 
 ## Known Non-Goals / Current Gaps
 
