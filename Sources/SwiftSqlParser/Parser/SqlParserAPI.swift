@@ -223,13 +223,19 @@ public struct SqlParser: Sendable {
     }
 
     return ScriptParseResult(
-      slots: parseStatementList(sql, options: options, recordEmptyStatements: true).slots)
+      slots: parseStatementList(
+        sql,
+        options: options,
+        recordEmptyStatements: true,
+        continueAfterErrors: options.recoverParseErrors
+      ).slots)
   }
 
   private func parseStatementList(
     _ sql: String,
     options: ParserOptions,
-    recordEmptyStatements: Bool
+    recordEmptyStatements: Bool,
+    continueAfterErrors: Bool = true
   ) -> StatementsParseResult {
     let chunks = splitScriptChunks(sql, separators: options.scriptSeparators)
     var slots: [StatementParseSlot] = []
@@ -248,6 +254,9 @@ public struct SqlParser: Sendable {
                 location: chunk.location),
               location: chunk.location))
         }
+        if continueAfterErrors == false {
+          break
+        }
         continue
       }
 
@@ -261,6 +270,9 @@ public struct SqlParser: Sendable {
         slots.append(
           StatementParseSlot(statement: nil, diagnostic: error.diagnostic, location: chunk.location)
         )
+        if continueAfterErrors == false {
+          break
+        }
       } catch {
         slots.append(
           StatementParseSlot(
@@ -271,6 +283,9 @@ public struct SqlParser: Sendable {
               normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
               location: chunk.location),
             location: chunk.location))
+        if continueAfterErrors == false {
+          break
+        }
       }
     }
 

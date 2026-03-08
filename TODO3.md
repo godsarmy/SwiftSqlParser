@@ -69,10 +69,10 @@ Align `SwiftSqlParser` more closely with the behaviors described in:
 
 ### Milestone B: Distinguish recovery behaviors
 
-- [ ] Add a parser option for parse-error recovery separate from unsupported-statement recovery
-- [ ] Keep `recoverUnsupportedStatements` for unsupported syntax mapping
-- [ ] Add a second option for JSqlParser-style error recovery across batches/scripts
-- [ ] Document the behavior difference clearly
+- [x] Add a parser option for parse-error recovery separate from unsupported-statement recovery
+- [x] Keep `recoverUnsupportedStatements` for unsupported syntax mapping
+- [x] Add a second option for JSqlParser-style error recovery across batches/scripts
+- [x] Document the behavior difference clearly
 
 ### Milestone C: Align unsupported-statement semantics
 
