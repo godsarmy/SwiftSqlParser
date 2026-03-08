@@ -1,7 +1,5 @@
 import Foundation
 
-public protocol Statement: Sendable {}
-
 public struct RawStatement: Statement, Equatable, Sendable {
     public let sql: String
 
