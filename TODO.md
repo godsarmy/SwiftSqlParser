@@ -109,4 +109,4 @@
 - [x] `v0.1`: SwiftPM skeleton + parser API + minimal `SELECT` support.
 - [x] `v0.2`: visitor/deparser + round-trip tests + expanded `SELECT` grammar.
 - [x] `v0.3`: full DML + diagnostics polish + corpus scaling.
-- [ ] `v1.0`: stable API + basic DDL + documented dialect support matrix.
+- [x] `v1.0`: stable API + basic DDL + documented dialect support matrix.
