@@ -173,6 +173,24 @@ public struct SqlParser: Sendable {
   public func parseStatements(_ sql: String, options: ParserOptions = .init()) throws
     -> [any Statement]
   {
+    let result = try parseStatementsResult(sql, options: options)
+    if let diagnostic = result.diagnostics.first {
+      switch diagnostic.code {
+      case .emptyInput:
+        throw SqlParseError.emptyInput(diagnostic)
+      case .emptyStatement:
+        throw SqlParseError.emptyStatement(diagnostic)
+      case .unsupportedSyntax:
+        throw SqlParseError.unsupportedSyntax(diagnostic)
+      }
+    }
+
+    return result.statements
+  }
+
+  public func parseStatementsResult(_ sql: String, options: ParserOptions = .init()) throws
+    -> StatementsParseResult
+  {
     let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
     guard cleaned.isEmpty == false else {
       throw SqlParseError.emptyInput(
@@ -185,78 +203,78 @@ public struct SqlParser: Sendable {
       )
     }
 
-    let statements = splitScriptChunks(cleaned, separators: options.scriptSeparators).map {
-      $0.sql.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    let containsEmptyChunk = statements.contains(where: \String.isEmpty)
-    if containsEmptyChunk {
-      let firstEmpty = statements.firstIndex(of: "") ?? 0
-      throw SqlParseError.emptyStatement(
-        SqlDiagnostic(
-          code: .emptyStatement,
-          message: "Statement at index \(firstEmpty) is empty.",
-          normalizedMessage: "empty_statement:statement chunk is empty",
-          location: .init(line: 1, column: firstEmpty + 1, offset: firstEmpty)
-        )
-      )
-    }
-
-    return try statements.map { try parseStatement($0, options: options) }
+    return parseStatementList(cleaned, options: options, recordEmptyStatements: true)
   }
 
   public func parseScript(_ sql: String, options: ParserOptions = .init()) -> ScriptParseResult {
     if options.scriptSeparators.contains(where: \.isEmpty) {
       return ScriptParseResult(
-        statements: [],
-        diagnostics: [
-          SqlDiagnostic(
-            code: .emptyStatement,
-            message: "Script separator cannot be empty.",
-            normalizedMessage: "empty_statement:script separator cannot be empty",
-            location: .init(line: 1, column: 1, offset: 0)
-          )
+        slots: [
+          StatementParseSlot(
+            statement: nil,
+            diagnostic: SqlDiagnostic(
+              code: .emptyStatement,
+              message: "Script separator cannot be empty.",
+              normalizedMessage: "empty_statement:script separator cannot be empty",
+              location: .init(line: 1, column: 1, offset: 0)
+            ),
+            location: .init(line: 1, column: 1, offset: 0))
         ])
     }
 
+    return ScriptParseResult(
+      slots: parseStatementList(sql, options: options, recordEmptyStatements: true).slots)
+  }
+
+  private func parseStatementList(
+    _ sql: String,
+    options: ParserOptions,
+    recordEmptyStatements: Bool
+  ) -> StatementsParseResult {
     let chunks = splitScriptChunks(sql, separators: options.scriptSeparators)
-    var statements: [any Statement] = []
-    var diagnostics: [SqlDiagnostic] = []
+    var slots: [StatementParseSlot] = []
 
     for chunk in chunks {
       let trimmed = chunk.sql.trimmingCharacters(in: .whitespacesAndNewlines)
       if trimmed.isEmpty {
-        diagnostics.append(
-          SqlDiagnostic(
-            code: .emptyStatement,
-            message: "Script statement is empty.",
-            normalizedMessage: "empty_statement:script statement is empty",
-            location: chunk.location
-          )
+        if recordEmptyStatements {
+          slots.append(
+            StatementParseSlot(
+              statement: nil,
+              diagnostic: SqlDiagnostic(
+                code: .emptyStatement,
+                message: "Script statement is empty.",
+                normalizedMessage: "empty_statement:script statement is empty",
+                location: chunk.location),
+              location: chunk.location))
+        }
+        continue
+      }
+
+      do {
+        let statement = try parseStatement(trimmed, options: options)
+        let diagnostic = (statement as? UnsupportedStatement)?.diagnostic
+        slots.append(
+          StatementParseSlot(statement: statement, diagnostic: diagnostic, location: chunk.location)
         )
-      } else {
-        do {
-          let statement = try parseStatement(trimmed, options: options)
-          statements.append(statement)
-          if let unsupported = statement as? UnsupportedStatement {
-            diagnostics.append(unsupported.diagnostic)
-          }
-        } catch let error as SqlParseError {
-          diagnostics.append(error.diagnostic)
-        } catch {
-          diagnostics.append(
-            SqlDiagnostic(
+      } catch let error as SqlParseError {
+        slots.append(
+          StatementParseSlot(statement: nil, diagnostic: error.diagnostic, location: chunk.location)
+        )
+      } catch {
+        slots.append(
+          StatementParseSlot(
+            statement: nil,
+            diagnostic: SqlDiagnostic(
               code: .unsupportedSyntax,
               message: "Statement uses unsupported syntax.",
               normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
-              location: chunk.location
-            )
-          )
-        }
+              location: chunk.location),
+            location: chunk.location))
       }
     }
 
-    return ScriptParseResult(statements: statements, diagnostics: diagnostics)
+    return StatementsParseResult(slots: slots)
   }
 
   private func splitScriptChunks(_ input: String, separators: [String]) -> [ScriptChunk] {

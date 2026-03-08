@@ -39,11 +39,47 @@ public struct SqlDiagnostic: Error, Sendable, Equatable {
 }
 
 public struct ScriptParseResult: Sendable {
+  public let slots: [StatementParseSlot]
   public let statements: [any Statement]
   public let diagnostics: [SqlDiagnostic]
 
-  public init(statements: [any Statement], diagnostics: [SqlDiagnostic]) {
+  public init(
+    slots: [StatementParseSlot], statements: [any Statement], diagnostics: [SqlDiagnostic]
+  ) {
+    self.slots = slots
     self.statements = statements
     self.diagnostics = diagnostics
+  }
+
+  public init(slots: [StatementParseSlot]) {
+    self.init(
+      slots: slots,
+      statements: slots.compactMap(\.statement),
+      diagnostics: slots.compactMap(\.diagnostic))
+  }
+}
+
+public struct StatementParseSlot: Sendable {
+  public let statement: (any Statement)?
+  public let diagnostic: SqlDiagnostic?
+  public let location: SqlSourceLocation
+
+  public init(statement: (any Statement)?, diagnostic: SqlDiagnostic?, location: SqlSourceLocation)
+  {
+    self.statement = statement
+    self.diagnostic = diagnostic
+    self.location = location
+  }
+}
+
+public struct StatementsParseResult: Sendable {
+  public let slots: [StatementParseSlot]
+  public let statements: [any Statement]
+  public let diagnostics: [SqlDiagnostic]
+
+  public init(slots: [StatementParseSlot]) {
+    self.slots = slots
+    self.statements = slots.compactMap(\.statement)
+    self.diagnostics = slots.compactMap(\.diagnostic)
   }
 }

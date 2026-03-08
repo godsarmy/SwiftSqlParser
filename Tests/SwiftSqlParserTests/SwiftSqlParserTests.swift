@@ -30,6 +30,19 @@ func parseStatementsIgnoresSeparatorsInsideStrings() throws {
 }
 
 @Test
+func parseStatementsResultPreservesSlotsAcrossFailures() throws {
+  let result = try SqlParser().parseStatementsResult("SELECT * FROM users;;SELECT * FROM roles")
+
+  #expect(result.slots.count == 3)
+  #expect(result.slots[0].statement is PlainSelect)
+  #expect(result.slots[1].statement == nil)
+  #expect(result.slots[1].diagnostic?.code == .emptyStatement)
+  #expect(result.slots[2].statement is PlainSelect)
+  #expect(result.statements.count == 2)
+  #expect(result.diagnostics.count == 1)
+}
+
+@Test
 func utilityStatementsParseIntoDedicatedAstNodes() throws {
   #expect(try parseStatement("SHOW TABLES") is ShowStatement)
   #expect(try parseStatement("RESET work_mem") is ResetStatement)
