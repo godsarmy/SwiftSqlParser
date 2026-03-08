@@ -9,6 +9,10 @@ private struct CountingStatementVisitor: StatementVisitor {
     var insertCount = 0
     var updateCount = 0
     var deleteCount = 0
+    var createCount = 0
+    var alterCount = 0
+    var dropCount = 0
+    var truncateCount = 0
 
     mutating func visit(rawStatement: RawStatement) {
         rawCount += 1
@@ -37,6 +41,22 @@ private struct CountingStatementVisitor: StatementVisitor {
     mutating func visit(deleteStatement: DeleteStatement) {
         deleteCount += 1
     }
+
+    mutating func visit(createTableStatement: CreateTableStatement) {
+        createCount += 1
+    }
+
+    mutating func visit(alterTableStatement: AlterTableStatement) {
+        alterCount += 1
+    }
+
+    mutating func visit(dropTableStatement: DropTableStatement) {
+        dropCount += 1
+    }
+
+    mutating func visit(truncateTableStatement: TruncateTableStatement) {
+        truncateCount += 1
+    }
 }
 
 @Test
@@ -52,6 +72,10 @@ func statementVisitorDispatchesExpectedType() {
     #expect(visitor.insertCount == 0)
     #expect(visitor.updateCount == 0)
     #expect(visitor.deleteCount == 0)
+    #expect(visitor.createCount == 0)
+    #expect(visitor.alterCount == 0)
+    #expect(visitor.dropCount == 0)
+    #expect(visitor.truncateCount == 0)
 }
 
 @Test

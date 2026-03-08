@@ -56,6 +56,30 @@ public struct StatementDeparser {
             return "DELETE FROM \(delete.table)"
         }
 
+        if let create = statement as? CreateTableStatement {
+            let columns = create.columns
+                .map { "\($0.name) \($0.typeName)" }
+                .joined(separator: ", ")
+            return "CREATE TABLE \(create.table) (\(columns))"
+        }
+
+        if let alter = statement as? AlterTableStatement {
+            switch alter.operation {
+            case let .addColumn(column):
+                return "ALTER TABLE \(alter.table) ADD COLUMN \(column.name) \(column.typeName)"
+            case let .dropColumn(columnName):
+                return "ALTER TABLE \(alter.table) DROP COLUMN \(columnName)"
+            }
+        }
+
+        if let drop = statement as? DropTableStatement {
+            return "DROP TABLE \(drop.table)"
+        }
+
+        if let truncate = statement as? TruncateTableStatement {
+            return "TRUNCATE TABLE \(truncate.table)"
+        }
+
         return "<unsupported-statement>"
     }
 }

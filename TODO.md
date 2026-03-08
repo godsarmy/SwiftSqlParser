@@ -89,7 +89,7 @@
 - [x] Milestone A: `SELECT` core (projection, `FROM`, `WHERE`, joins).
 - [x] Milestone B: `WITH`/CTE + subqueries + set ops.
 - [x] Milestone C: DML (`INSERT`, `UPDATE`, `DELETE`).
-- [ ] Milestone D: basic DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`).
+- [x] Milestone D: basic DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`).
 - [ ] Milestone E: dialect extensions (`Postgres`, `MySQL`, `SQL Server`, `BigQuery`, etc.).
 
 ## 9) Performance and Robustness

@@ -71,6 +71,23 @@ public struct SqlParser: Sendable {
             }
         }
 
+        if uppercased.hasPrefix("CREATE ") || uppercased.hasPrefix("ALTER ") || uppercased.hasPrefix("DROP ") || uppercased.hasPrefix("TRUNCATE ") {
+            do {
+                var ddlParser = try DdlParser(sql: cleaned)
+                return try ddlParser.parseStatement()
+            } catch {
+                throw SqlParseError.unsupportedSyntax(
+                    SqlDiagnostic(
+                        code: .unsupportedSyntax,
+                        message: "Statement uses unsupported DDL syntax.",
+                        normalizedMessage: "unsupported_syntax:ddl_parse_failure",
+                        location: .init(line: 1, column: 1, offset: 0),
+                        token: "DDL"
+                    )
+                )
+            }
+        }
+
         if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("(") {
             do {
                 var selectParser = try SelectCoreParser(sql: cleaned)

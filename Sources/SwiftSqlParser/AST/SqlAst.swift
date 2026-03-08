@@ -150,6 +150,57 @@ public struct DeleteStatement: Statement, Sendable, Equatable {
     }
 }
 
+public struct TableColumnDefinition: Sendable, Equatable {
+    public let name: String
+    public let typeName: String
+
+    public init(name: String, typeName: String) {
+        self.name = name
+        self.typeName = typeName
+    }
+}
+
+public struct CreateTableStatement: Statement, Sendable, Equatable {
+    public let table: String
+    public let columns: [TableColumnDefinition]
+
+    public init(table: String, columns: [TableColumnDefinition]) {
+        self.table = table
+        self.columns = columns
+    }
+}
+
+public enum AlterTableOperation: Sendable, Equatable {
+    case addColumn(TableColumnDefinition)
+    case dropColumn(String)
+}
+
+public struct AlterTableStatement: Statement, Sendable, Equatable {
+    public let table: String
+    public let operation: AlterTableOperation
+
+    public init(table: String, operation: AlterTableOperation) {
+        self.table = table
+        self.operation = operation
+    }
+}
+
+public struct DropTableStatement: Statement, Sendable, Equatable {
+    public let table: String
+
+    public init(table: String) {
+        self.table = table
+    }
+}
+
+public struct TruncateTableStatement: Statement, Sendable, Equatable {
+    public let table: String
+
+    public init(table: String) {
+        self.table = table
+    }
+}
+
 public struct Join: Sendable, Equatable {
     public enum JoinType: String, Sendable {
         case inner

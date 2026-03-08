@@ -41,6 +41,8 @@ func corpusSuccessStatementsParse() throws {
             #expect(parsed is UpdateStatement)
         } else if upper.hasPrefix("DELETE ") {
             #expect(parsed is DeleteStatement)
+        } else if upper.hasPrefix("CREATE ") {
+            #expect(parsed is CreateTableStatement)
         } else {
             #expect(parsed is RawStatement)
         }

@@ -6,6 +6,10 @@ public protocol StatementVisitor {
     mutating func visit(insertStatement: InsertStatement)
     mutating func visit(updateStatement: UpdateStatement)
     mutating func visit(deleteStatement: DeleteStatement)
+    mutating func visit(createTableStatement: CreateTableStatement)
+    mutating func visit(alterTableStatement: AlterTableStatement)
+    mutating func visit(dropTableStatement: DropTableStatement)
+    mutating func visit(truncateTableStatement: TruncateTableStatement)
 }
 
 public extension StatementVisitor {
@@ -16,6 +20,10 @@ public extension StatementVisitor {
     mutating func visit(insertStatement: InsertStatement) {}
     mutating func visit(updateStatement: UpdateStatement) {}
     mutating func visit(deleteStatement: DeleteStatement) {}
+    mutating func visit(createTableStatement: CreateTableStatement) {}
+    mutating func visit(alterTableStatement: AlterTableStatement) {}
+    mutating func visit(dropTableStatement: DropTableStatement) {}
+    mutating func visit(truncateTableStatement: TruncateTableStatement) {}
 }
 
 public protocol ExpressionVisitor {
@@ -92,6 +100,26 @@ public enum AstVisit {
 
         if let delete = statement as? DeleteStatement {
             visitor.visit(deleteStatement: delete)
+            return
+        }
+
+        if let create = statement as? CreateTableStatement {
+            visitor.visit(createTableStatement: create)
+            return
+        }
+
+        if let alter = statement as? AlterTableStatement {
+            visitor.visit(alterTableStatement: alter)
+            return
+        }
+
+        if let drop = statement as? DropTableStatement {
+            visitor.visit(dropTableStatement: drop)
+            return
+        }
+
+        if let truncate = statement as? TruncateTableStatement {
+            visitor.visit(truncateTableStatement: truncate)
         }
     }
 
