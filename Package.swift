@@ -11,11 +11,19 @@ let package = Package(
         .library(
             name: "SwiftSqlParser",
             targets: ["SwiftSqlParser"]
+        ),
+        .executable(
+            name: "SwiftSqlParserBenchmark",
+            targets: ["SwiftSqlParserBenchmark"]
         )
     ],
     targets: [
         .target(
             name: "SwiftSqlParser"
+        ),
+        .executableTarget(
+            name: "SwiftSqlParserBenchmark",
+            dependencies: ["SwiftSqlParser"]
         ),
         .testTarget(
             name: "SwiftSqlParserTests",

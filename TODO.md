@@ -94,9 +94,9 @@
 
 ## 9) Performance and Robustness
 
-- [ ] Add parser benchmarks on large scripts/corpus.
-- [ ] Profile tokenization and AST allocation hotspots.
-- [ ] Optimize hot paths without breaking AST/API contracts.
+- [x] Add parser benchmarks on large scripts/corpus.
+- [x] Profile tokenization and AST allocation hotspots.
+- [x] Optimize hot paths without breaking AST/API contracts.
 
 ## 10) Versioning and Compatibility
 

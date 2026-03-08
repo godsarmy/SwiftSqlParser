@@ -122,7 +122,7 @@ public struct SqlParser: Sendable {
         }
 
         let statements: [String] = options.scriptSeparators.reduce([cleaned]) { partial, separator in
-            partial.flatMap { $0.components(separatedBy: separator) }
+            partial.flatMap { splitStatementChunks($0, separator: separator) }
         }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -155,7 +155,7 @@ public struct SqlParser: Sendable {
             ])
         }
 
-        let chunks = sql.components(separatedBy: separator)
+        let chunks = splitStatementChunks(sql, separator: separator)
         var line = 1
         var column = 1
         var offset = 0
@@ -206,6 +206,23 @@ public struct SqlParser: Sendable {
         }
 
         return ScriptParseResult(statements: statements, diagnostics: diagnostics)
+    }
+
+    private func splitStatementChunks(_ input: String, separator: String) -> [String] {
+        guard separator.isEmpty == false else {
+            return [input]
+        }
+
+        var parts: [String] = []
+        parts.reserveCapacity(max(1, input.count / max(separator.count, 1)))
+
+        var start = input.startIndex
+        while let range = input.range(of: separator, range: start..<input.endIndex) {
+            parts.append(String(input[start..<range.lowerBound]))
+            start = range.upperBound
+        }
+        parts.append(String(input[start..<input.endIndex]))
+        return parts
     }
 
     private func validateSupportedSyntax(_ sql: String) throws {
