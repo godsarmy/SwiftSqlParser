@@ -10,6 +10,7 @@ Reimplement JSqlParser concepts in Swift with:
 - extensible AST model
 - visitor/deparser support
 - deterministic diagnostics for parity tracking and tests
+- recoverable batch/script parsing with slot-preserving results
 
 ## Code Map
 
@@ -18,7 +19,7 @@ Reimplement JSqlParser concepts in Swift with:
   - `SelectCoreParser.swift` - query parsing (`SELECT`, `WITH`, `VALUES`, set ops, joins, window syntax)
   - `DmlParser.swift` - `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `REPLACE`
   - `DdlParser.swift` - table/view/index DDL
-  - `SqlParserAPI.swift` - top-level dispatch, utility statements, script splitting, recovery behavior, diagnostics shaping
+  - `SqlParserAPI.swift` - top-level dispatch, utility statements, script splitting, recovery behavior, and parse-result shaping
 - `Sources/SwiftSqlParser/Visitors/` - visitor protocols, dispatch helpers, and `TableNameFinder` for statements and expressions
 - `Sources/SwiftSqlParser/Deparser/` - SQL serialization from AST
 - `Sources/SwiftSqlParserBenchmark/` - local benchmark executable
