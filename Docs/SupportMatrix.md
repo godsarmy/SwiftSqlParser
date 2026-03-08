@@ -77,6 +77,8 @@ The following syntax remains intentionally unsupported and reported via normaliz
 |---|---|---|
 | Delimiter-aware splitting | Supported | ignores separators inside quoted strings and nested parentheses |
 | Unsupported recovery | Supported | `ParserOptions(recoverUnsupportedStatements: true)` returns `UnsupportedStatement` while preserving diagnostics |
+| Default separators | Supported | defaults include `;`, `GO`, `/`, and blank-line delimiters |
+| Line-aware delimiters | Supported | `GO` and `/` split only when they appear on standalone delimiter lines |
 
 ## Utilities
 

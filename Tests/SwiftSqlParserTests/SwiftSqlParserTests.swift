@@ -22,6 +22,21 @@ func parseStatementsRespectsSeparators() throws {
 }
 
 @Test
+func parseStatementsUsesDefaultGoAndSlashSeparators() throws {
+  let goStatements = try parseStatements("SELECT * FROM users\nGO\nSELECT * FROM roles")
+  #expect(goStatements.count == 2)
+
+  let slashStatements = try parseStatements("SELECT * FROM users\n/\nSELECT * FROM roles")
+  #expect(slashStatements.count == 2)
+}
+
+@Test
+func parseStatementsUsesDefaultBlankLineSeparator() throws {
+  let statements = try parseStatements("SELECT * FROM users\n\n\nSELECT * FROM roles")
+  #expect(statements.count == 2)
+}
+
+@Test
 func parseStatementsIgnoresSeparatorsInsideStrings() throws {
   let options = ParserOptions(scriptSeparators: [";"])
   let statements = try parseStatements(

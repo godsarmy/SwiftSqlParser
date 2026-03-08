@@ -10,6 +10,7 @@ SwiftSqlParser parses SQL into a Swift AST with configurable dialect behavior.
 - Utility statements: `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
 - Option-driven dialect extensions including Postgres `ILIKE` / `DISTINCT ON`, SQL Server `TOP`, Oracle alternative quoting, quoted identifiers, and dialect-gated `PIVOT` / `UNPIVOT`
 - Script parsing supports delimiter-aware splitting and optional unsupported-statement recovery
+- Default script separators include `;`, `GO`, `/`, and double-blank-line boundaries; `GO` and `/` are treated as delimiter lines
 - Ecosystem utilities include visitors/deparsers plus `TableNameFinder`
 
 ## Quick Start

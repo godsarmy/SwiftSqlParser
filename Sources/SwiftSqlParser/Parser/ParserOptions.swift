@@ -40,7 +40,7 @@ public struct ParserOptions: Sendable, Equatable {
   public init(
     identifierQuoting: IdentifierQuotingBehavior = .ansiDoubleQuotes,
     escapeBehavior: EscapeBehavior = .backslash,
-    scriptSeparators: [String] = [";"],
+    scriptSeparators: [String] = [";", "GO", "/", "\n\n\n"],
     recoverParseErrors: Bool = false,
     recoverUnsupportedStatements: Bool = false,
     dialectFeatures: Set<DialectFeature> = [],

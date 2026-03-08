@@ -82,17 +82,17 @@ Align `SwiftSqlParser` more closely with the behaviors described in:
 
 ### Milestone D: Expand separator parity
 
-- [ ] Extend default script separators to include `;`, `GO`, `/`, and blank-line delimiters
-- [ ] Keep the behavior configurable through `ParserOptions`
-- [ ] Document how separator matching works
+- [x] Extend default script separators to include `;`, `GO`, `/`, and blank-line delimiters
+- [x] Keep the behavior configurable through `ParserOptions`
+- [x] Document how separator matching works
 
 ### Milestone E: Make script splitting line-aware
 
-- [ ] Update `splitScriptChunks` to treat `GO` as a standalone delimiter line
-- [ ] Update `splitScriptChunks` to treat `/` as a standalone delimiter line where appropriate
-- [ ] Support blank-line delimiters structurally rather than as naive substring matches
-- [ ] Preserve quote-awareness and parenthesis-awareness
-- [ ] Preserve accurate source locations for diagnostics
+- [x] Update `splitScriptChunks` to treat `GO` as a standalone delimiter line
+- [x] Update `splitScriptChunks` to treat `/` as a standalone delimiter line where appropriate
+- [x] Support blank-line delimiters structurally rather than as naive substring matches
+- [x] Preserve quote-awareness and parenthesis-awareness
+- [x] Preserve accurate source locations for diagnostics
 
 ### Milestone F: Add parse-result diagnostics API
 

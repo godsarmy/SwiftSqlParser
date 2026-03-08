@@ -42,8 +42,15 @@ func parseScriptContinuesAfterErrorsWhenRecoveryEnabled() {
 
 @Test
 func parseScriptIgnoresSeparatorsInsideQuotedStrings() {
-  let result = parseScript("SELECT 'a;b' FROM a;SELECT * FROM b")
+  let result = parseScript("SELECT 'a;GO;/' FROM a;SELECT * FROM b")
   #expect(result.statements.count == 2)
+  #expect(result.diagnostics.isEmpty)
+}
+
+@Test
+func parseScriptTreatsGoAndSlashAsDelimiterLinesOnly() {
+  let result = parseScript("SELECT 'GO' FROM a\nGO\nSELECT '/' FROM b\n/\nSELECT * FROM c")
+  #expect(result.statements.count == 3)
   #expect(result.diagnostics.isEmpty)
 }
 

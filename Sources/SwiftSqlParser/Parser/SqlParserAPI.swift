@@ -306,9 +306,46 @@ public struct SqlParser: Sendable {
     var parenthesisDepth = 0
     var index = input.startIndex
     var quoteState: Character?
+    var currentLineIsWhitespaceOnly = true
 
     while index < input.endIndex {
       let character = input[index]
+
+      if let separatorMatch = matchSeparator(
+        in: input,
+        at: index,
+        separators: separators,
+        quoteState: quoteState,
+        parenthesisDepth: parenthesisDepth,
+        currentLineIsWhitespaceOnly: currentLineIsWhitespaceOnly
+      ) {
+        chunks.append(
+          ScriptChunk(
+            sql: current, location: .init(line: chunkLine, column: chunkColumn, offset: chunkOffset)
+          ))
+        current = ""
+
+        let consumed = String(input[index..<separatorMatch.endIndex])
+        for consumedCharacter in consumed {
+          if consumedCharacter == "\n" {
+            line += 1
+            column = 1
+            currentLineIsWhitespaceOnly = true
+          } else {
+            column += 1
+            if consumedCharacter.isWhitespace == false {
+              currentLineIsWhitespaceOnly = false
+            }
+          }
+          offset += 1
+        }
+
+        index = separatorMatch.endIndex
+        chunkLine = line
+        chunkColumn = column
+        chunkOffset = offset
+        continue
+      }
 
       if let quote = quoteState {
         current.append(character)
@@ -339,28 +376,6 @@ public struct SqlParser: Sendable {
       } else if character == ")" {
         parenthesisDepth = max(0, parenthesisDepth - 1)
         current.append(character)
-      } else if parenthesisDepth == 0,
-        let separator = separators.first(where: { input[index...].hasPrefix($0) })
-      {
-        chunks.append(
-          ScriptChunk(
-            sql: current, location: .init(line: chunkLine, column: chunkColumn, offset: chunkOffset)
-          ))
-        current = ""
-        for _ in 0..<separator.count {
-          if input[index] == "\n" {
-            line += 1
-            column = 1
-          } else {
-            column += 1
-          }
-          offset += 1
-          index = input.index(after: index)
-        }
-        chunkLine = line
-        chunkColumn = column
-        chunkOffset = offset
-        continue
       } else {
         current.append(character)
       }
@@ -368,8 +383,12 @@ public struct SqlParser: Sendable {
       if character == "\n" {
         line += 1
         column = 1
+        currentLineIsWhitespaceOnly = true
       } else {
         column += 1
+        if character.isWhitespace == false {
+          currentLineIsWhitespaceOnly = false
+        }
       }
       offset += 1
       index = input.index(after: index)
@@ -379,6 +398,43 @@ public struct SqlParser: Sendable {
       ScriptChunk(
         sql: current, location: .init(line: chunkLine, column: chunkColumn, offset: chunkOffset)))
     return chunks
+  }
+
+  private func matchSeparator(
+    in input: String,
+    at index: String.Index,
+    separators: [String],
+    quoteState: Character?,
+    parenthesisDepth: Int,
+    currentLineIsWhitespaceOnly: Bool
+  ) -> (separator: String, endIndex: String.Index)? {
+    guard quoteState == nil, parenthesisDepth == 0 else {
+      return nil
+    }
+
+    if separators.contains(";"), input[index] == ";" {
+      return (";", input.index(after: index))
+    }
+
+    if separators.contains("\n\n\n"), input[index...].hasPrefix("\n\n\n") {
+      return ("\n\n\n", input.index(index, offsetBy: 3))
+    }
+
+    guard currentLineIsWhitespaceOnly else {
+      return nil
+    }
+
+    let lineEnd = input[index...].firstIndex(of: "\n") ?? input.endIndex
+    let lineText = input[index..<lineEnd].trimmingCharacters(in: .whitespacesAndNewlines)
+    if separators.contains("GO"), lineText.uppercased() == "GO" {
+      return ("GO", lineEnd < input.endIndex ? input.index(after: lineEnd) : lineEnd)
+    }
+
+    if separators.contains("/"), lineText == "/" {
+      return ("/", lineEnd < input.endIndex ? input.index(after: lineEnd) : lineEnd)
+    }
+
+    return nil
   }
 
   private func parseSetStatement(_ sql: String, options: ParserOptions) throws -> SetStatement {
