@@ -9,7 +9,7 @@ SwiftSqlParser parses SQL into a Swift AST with configurable dialect behavior.
 - DDL support: `CREATE TABLE`, `CREATE INDEX`, `CREATE VIEW`, `ALTER TABLE`, `DROP TABLE`, `TRUNCATE`
 - Utility statements: `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
 - Option-driven dialect extensions including Postgres `ILIKE` / `DISTINCT ON`, SQL Server `TOP`, Oracle alternative quoting, quoted identifiers, and dialect-gated `PIVOT` / `UNPIVOT`
-- Script parsing supports delimiter-aware splitting and optional unsupported-statement recovery
+- Script parsing supports delimiter-aware splitting, parse-error recovery, and unsupported-statement recovery
 - Default script separators include `;`, `GO`, `/`, and double-blank-line boundaries; `GO` and `/` are treated as delimiter lines
 - Ecosystem utilities include visitors/deparsers plus `TableNameFinder`
 
@@ -27,11 +27,19 @@ let statement = try parseStatement("SELECT id FROM users WHERE name ILIKE 'a%'",
 let statements = try parseStatements("SELECT * FROM users;DELETE FROM users WHERE id = 1")
 let script = parseScript(
     "SELECT 'a;b' FROM users;MATCH_RECOGNIZE (foo);SHOW TABLES",
-    options: ParserOptions(recoverUnsupportedStatements: true)
+    options: ParserOptions(recoverParseErrors: true, recoverUnsupportedStatements: true)
 )
+
+let statementResult = SqlParser().parseStatementResult("MATCH_RECOGNIZE (foo)")
+let statementsResult = try SqlParser().parseStatementsResult("SELECT * FROM users;;SELECT * FROM roles")
 
 let utility = try parseStatement("EXPLAIN SELECT * FROM users")
 let tables = TableNameFinder().find(in: statement)
+let expressionTables = TableNameFinder().find(in: BinaryExpression(
+    left: IdentifierExpression(name: "users.id"),
+    operator: .equals,
+    right: IdentifierExpression(name: "roles.user_id")
+))
 ```
 
 ## Development

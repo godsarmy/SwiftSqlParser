@@ -134,4 +134,4 @@ Align `SwiftSqlParser` more closely with the behaviors described in:
 - [x] Default separator behavior is closer to JSqlParser usage docs
 - [x] `GO`, `/`, and blank-line handling are verified with tests
 - [x] Table-name finding works for both statements and expressions
-- [ ] Public docs reflect the final behavior accurately
+- [x] Public docs reflect the final behavior accurately

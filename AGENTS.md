@@ -6,7 +6,7 @@ This file gives coding agents a fast, reliable map for working in this repositor
 
 Reimplement JSqlParser concepts in Swift with:
 
-- parser entry APIs (`parseStatement`, `parseStatements`, `parseScript`)
+- parser entry APIs (`parseStatement`, `parseStatementResult`, `parseStatements`, `parseStatementsResult`, `parseScript`)
 - extensible AST model
 - visitor/deparser support
 - deterministic diagnostics for parity tracking and tests
@@ -18,8 +18,8 @@ Reimplement JSqlParser concepts in Swift with:
   - `SelectCoreParser.swift` - query parsing (`SELECT`, `WITH`, `VALUES`, set ops, joins, window syntax)
   - `DmlParser.swift` - `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `REPLACE`
   - `DdlParser.swift` - table/view/index DDL
-  - `SqlParserAPI.swift` - top-level dispatch, utility statements, script splitting, diagnostics shaping
-- `Sources/SwiftSqlParser/Visitors/` - visitor protocols, dispatch helpers, and `TableNameFinder`
+  - `SqlParserAPI.swift` - top-level dispatch, utility statements, script splitting, recovery behavior, diagnostics shaping
+- `Sources/SwiftSqlParser/Visitors/` - visitor protocols, dispatch helpers, and `TableNameFinder` for statements and expressions
 - `Sources/SwiftSqlParser/Deparser/` - SQL serialization from AST
 - `Sources/SwiftSqlParserBenchmark/` - local benchmark executable
 - `Tests/SwiftSqlParserTests/` - unit/corpus/round-trip/dialect tests
@@ -61,7 +61,7 @@ Reimplement JSqlParser concepts in Swift with:
 ### Adding utility or script behavior
 
 1. Update `SqlParserAPI.swift` for top-level dispatch and script handling.
-2. Keep recovery behavior option-driven via `ParserOptions`.
+2. Keep parse-error recovery and unsupported-statement recovery distinct and option-driven via `ParserOptions`.
 3. Add script-level diagnostics tests when delimiter handling or recovery changes.
 4. Update `Docs/SupportMatrix.md` when behavior becomes user-visible.
 

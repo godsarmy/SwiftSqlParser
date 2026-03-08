@@ -76,15 +76,23 @@ The following syntax remains intentionally unsupported and reported via normaliz
 | Feature | Status | Notes |
 |---|---|---|
 | Delimiter-aware splitting | Supported | ignores separators inside quoted strings and nested parentheses |
-| Unsupported recovery | Supported | `ParserOptions(recoverUnsupportedStatements: true)` returns `UnsupportedStatement` while preserving diagnostics |
+| Parse-error recovery | Supported | `ParserOptions(recoverParseErrors: true)` keeps script parsing moving after empty/invalid statements |
+| Unsupported recovery | Supported | `ParserOptions(recoverUnsupportedStatements: true)` returns `UnsupportedStatement` without recording a parse diagnostic for that slot |
 | Default separators | Supported | defaults include `;`, `GO`, `/`, and blank-line delimiters |
 | Line-aware delimiters | Supported | `GO` and `/` split only when they appear on standalone delimiter lines |
+
+## Parse Result APIs
+
+| API | Status | Notes |
+|---|---|---|
+| `parseStatementResult` | Supported | non-throwing single-statement result with `statement` + `diagnostic` |
+| `parseStatementsResult` | Supported | slot-preserving batch result with statements and diagnostics |
 
 ## Utilities
 
 | Feature | Status | Notes |
 |---|---|---|
-| Table name finder | Supported | `TableNameFinder` walks statements and returns referenced tables, excluding CTE aliases |
+| Table name finder | Supported | `TableNameFinder` walks statements and expressions, excluding known CTE aliases and table aliases where possible |
 
 ## Stability Notes
 
