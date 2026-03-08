@@ -262,10 +262,8 @@ public struct SqlParser: Sendable {
 
       do {
         let statement = try parseStatement(trimmed, options: options)
-        let diagnostic = (statement as? UnsupportedStatement)?.diagnostic
         slots.append(
-          StatementParseSlot(statement: statement, diagnostic: diagnostic, location: chunk.location)
-        )
+          StatementParseSlot(statement: statement, diagnostic: nil, location: chunk.location))
       } catch let error as SqlParseError {
         slots.append(
           StatementParseSlot(statement: nil, diagnostic: error.diagnostic, location: chunk.location)

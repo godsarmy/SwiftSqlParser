@@ -54,6 +54,18 @@ func parseScriptRecoversUnsupportedStatementsWhenEnabled() {
 
   #expect(result.statements.count == 3)
   #expect(result.statements[1] is UnsupportedStatement)
-  #expect(result.diagnostics.count == 1)
-  #expect(result.diagnostics[0].normalizedMessage == "unsupported_syntax:match_recognize")
+  #expect(result.diagnostics.isEmpty)
+}
+
+@Test
+func parseStatementsResultRecoversUnsupportedStatementsWithoutDiagnostics() throws {
+  let result = try SqlParser().parseStatementsResult(
+    "SELECT * FROM a;MATCH_RECOGNIZE (foo);SHOW TABLES",
+    options: ParserOptions(recoverParseErrors: true, recoverUnsupportedStatements: true)
+  )
+
+  #expect(result.slots.count == 3)
+  #expect(result.slots[1].statement is UnsupportedStatement)
+  #expect(result.slots[1].diagnostic == nil)
+  #expect(result.diagnostics.isEmpty)
 }

@@ -76,9 +76,9 @@ Align `SwiftSqlParser` more closely with the behaviors described in:
 
 ### Milestone C: Align unsupported-statement semantics
 
-- [ ] When unsupported recovery is enabled, return `UnsupportedStatement` without emitting a parse error diagnostic for that statement
-- [ ] Keep diagnostics for true parse failures when parse-error recovery is enabled
-- [ ] Add tests proving the difference between the two recovery modes
+- [x] When unsupported recovery is enabled, return `UnsupportedStatement` without emitting a parse error diagnostic for that statement
+- [x] Keep diagnostics for true parse failures when parse-error recovery is enabled
+- [x] Add tests proving the difference between the two recovery modes
 
 ### Milestone D: Expand separator parity
 
