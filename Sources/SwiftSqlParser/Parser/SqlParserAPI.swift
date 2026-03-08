@@ -53,6 +53,24 @@ public struct SqlParser: Sendable {
         try validateSupportedSyntax(cleaned)
 
         let uppercased = cleaned.uppercased()
+
+        if uppercased.hasPrefix("INSERT ") || uppercased.hasPrefix("UPDATE ") || uppercased.hasPrefix("DELETE ") {
+            do {
+                var dmlParser = try DmlParser(sql: cleaned)
+                return try dmlParser.parseStatement()
+            } catch {
+                throw SqlParseError.unsupportedSyntax(
+                    SqlDiagnostic(
+                        code: .unsupportedSyntax,
+                        message: "Statement uses unsupported DML syntax.",
+                        normalizedMessage: "unsupported_syntax:dml_parse_failure",
+                        location: .init(line: 1, column: 1, offset: 0),
+                        token: "DML"
+                    )
+                )
+            }
+        }
+
         if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("(") {
             do {
                 var selectParser = try SelectCoreParser(sql: cleaned)

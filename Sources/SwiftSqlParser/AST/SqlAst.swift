@@ -85,6 +85,71 @@ public struct SetOperationSelect: Statement, Sendable, Equatable {
     }
 }
 
+public struct InsertStatement: Statement, Sendable, Equatable {
+    public let table: String
+    public let columns: [String]
+    public let values: [[any Expression]]
+
+    public init(table: String, columns: [String], values: [[any Expression]]) {
+        self.table = table
+        self.columns = columns
+        self.values = values
+    }
+
+    public static func == (lhs: InsertStatement, rhs: InsertStatement) -> Bool {
+        lhs.table == rhs.table
+            && lhs.columns == rhs.columns
+            && lhs.values.count == rhs.values.count
+    }
+}
+
+public struct UpdateAssignment: Sendable, Equatable {
+    public let column: String
+    public let value: any Expression
+
+    public init(column: String, value: any Expression) {
+        self.column = column
+        self.value = value
+    }
+
+    public static func == (lhs: UpdateAssignment, rhs: UpdateAssignment) -> Bool {
+        lhs.column == rhs.column
+    }
+}
+
+public struct UpdateStatement: Statement, Sendable, Equatable {
+    public let table: String
+    public let assignments: [UpdateAssignment]
+    public let whereExpression: (any Expression)?
+
+    public init(table: String, assignments: [UpdateAssignment], whereExpression: (any Expression)? = nil) {
+        self.table = table
+        self.assignments = assignments
+        self.whereExpression = whereExpression
+    }
+
+    public static func == (lhs: UpdateStatement, rhs: UpdateStatement) -> Bool {
+        lhs.table == rhs.table
+            && lhs.assignments == rhs.assignments
+            && lhs.whereExpression == nil && rhs.whereExpression == nil
+    }
+}
+
+public struct DeleteStatement: Statement, Sendable, Equatable {
+    public let table: String
+    public let whereExpression: (any Expression)?
+
+    public init(table: String, whereExpression: (any Expression)? = nil) {
+        self.table = table
+        self.whereExpression = whereExpression
+    }
+
+    public static func == (lhs: DeleteStatement, rhs: DeleteStatement) -> Bool {
+        lhs.table == rhs.table
+            && lhs.whereExpression == nil && rhs.whereExpression == nil
+    }
+}
+
 public struct Join: Sendable, Equatable {
     public enum JoinType: String, Sendable {
         case inner

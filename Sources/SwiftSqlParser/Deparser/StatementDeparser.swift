@@ -31,6 +31,31 @@ public struct StatementDeparser {
             return "\(deparse(setOperation.left)) \(operationKeyword)\(allKeyword) \(deparse(setOperation.right))"
         }
 
+        if let insert = statement as? InsertStatement {
+            let columns = insert.columns.isEmpty ? "" : " (\(insert.columns.joined(separator: ", ")))"
+            let rows = insert.values
+                .map { "(\($0.map(expressionDeparser.deparse).joined(separator: ", ")))" }
+                .joined(separator: ", ")
+            return "INSERT INTO \(insert.table)\(columns) VALUES \(rows)"
+        }
+
+        if let update = statement as? UpdateStatement {
+            let assignments = update.assignments
+                .map { "\($0.column) = \(expressionDeparser.deparse($0.value))" }
+                .joined(separator: ", ")
+            if let whereExpression = update.whereExpression {
+                return "UPDATE \(update.table) SET \(assignments) WHERE \(expressionDeparser.deparse(whereExpression))"
+            }
+            return "UPDATE \(update.table) SET \(assignments)"
+        }
+
+        if let delete = statement as? DeleteStatement {
+            if let whereExpression = delete.whereExpression {
+                return "DELETE FROM \(delete.table) WHERE \(expressionDeparser.deparse(whereExpression))"
+            }
+            return "DELETE FROM \(delete.table)"
+        }
+
         return "<unsupported-statement>"
     }
 }

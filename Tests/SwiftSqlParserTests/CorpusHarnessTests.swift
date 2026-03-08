@@ -35,6 +35,12 @@ func corpusSuccessStatementsParse() throws {
             #expect(parsed is PlainSelect)
         } else if upper.hasPrefix("WITH ") {
             #expect(parsed is WithSelect)
+        } else if upper.hasPrefix("INSERT ") {
+            #expect(parsed is InsertStatement)
+        } else if upper.hasPrefix("UPDATE ") {
+            #expect(parsed is UpdateStatement)
+        } else if upper.hasPrefix("DELETE ") {
+            #expect(parsed is DeleteStatement)
         } else {
             #expect(parsed is RawStatement)
         }

@@ -3,6 +3,9 @@ public protocol StatementVisitor {
     mutating func visit(plainSelect: PlainSelect)
     mutating func visit(withSelect: WithSelect)
     mutating func visit(setOperationSelect: SetOperationSelect)
+    mutating func visit(insertStatement: InsertStatement)
+    mutating func visit(updateStatement: UpdateStatement)
+    mutating func visit(deleteStatement: DeleteStatement)
 }
 
 public extension StatementVisitor {
@@ -10,6 +13,9 @@ public extension StatementVisitor {
     mutating func visit(plainSelect: PlainSelect) {}
     mutating func visit(withSelect: WithSelect) {}
     mutating func visit(setOperationSelect: SetOperationSelect) {}
+    mutating func visit(insertStatement: InsertStatement) {}
+    mutating func visit(updateStatement: UpdateStatement) {}
+    mutating func visit(deleteStatement: DeleteStatement) {}
 }
 
 public protocol ExpressionVisitor {
@@ -71,6 +77,21 @@ public enum AstVisit {
 
         if let setOperation = statement as? SetOperationSelect {
             visitor.visit(setOperationSelect: setOperation)
+            return
+        }
+
+        if let insert = statement as? InsertStatement {
+            visitor.visit(insertStatement: insert)
+            return
+        }
+
+        if let update = statement as? UpdateStatement {
+            visitor.visit(updateStatement: update)
+            return
+        }
+
+        if let delete = statement as? DeleteStatement {
+            visitor.visit(deleteStatement: delete)
         }
     }
 

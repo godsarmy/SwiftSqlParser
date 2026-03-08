@@ -6,6 +6,9 @@ private struct CountingStatementVisitor: StatementVisitor {
     var selectCount = 0
     var withCount = 0
     var setOperationCount = 0
+    var insertCount = 0
+    var updateCount = 0
+    var deleteCount = 0
 
     mutating func visit(rawStatement: RawStatement) {
         rawCount += 1
@@ -22,6 +25,18 @@ private struct CountingStatementVisitor: StatementVisitor {
     mutating func visit(setOperationSelect: SetOperationSelect) {
         setOperationCount += 1
     }
+
+    mutating func visit(insertStatement: InsertStatement) {
+        insertCount += 1
+    }
+
+    mutating func visit(updateStatement: UpdateStatement) {
+        updateCount += 1
+    }
+
+    mutating func visit(deleteStatement: DeleteStatement) {
+        deleteCount += 1
+    }
 }
 
 @Test
@@ -34,6 +49,9 @@ func statementVisitorDispatchesExpectedType() {
     #expect(visitor.selectCount == 0)
     #expect(visitor.withCount == 0)
     #expect(visitor.setOperationCount == 0)
+    #expect(visitor.insertCount == 0)
+    #expect(visitor.updateCount == 0)
+    #expect(visitor.deleteCount == 0)
 }
 
 @Test

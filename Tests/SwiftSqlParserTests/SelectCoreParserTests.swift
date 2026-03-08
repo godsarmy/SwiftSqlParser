@@ -27,9 +27,9 @@ func selectParserBuildsJoinNodes() throws {
 }
 
 @Test
-func nonSelectStatementsRemainRawUntilDmlDdlSlices() throws {
+func dmlStatementsNowParseIntoDedicatedAstNodes() throws {
     let parsed = try parseStatement("INSERT INTO users (id) VALUES (1)")
-    #expect(parsed is RawStatement)
+    #expect(parsed is InsertStatement)
 }
 
 @Test
