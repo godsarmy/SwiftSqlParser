@@ -80,22 +80,63 @@ struct SelectCoreParser {
             return try nested.parseStatement()
         }
 
+        if checkKeyword("VALUES") {
+            return try parseValuesSelect()
+        }
+
         return try parsePlainSelect()
+    }
+
+    private mutating func parseValuesSelect() throws -> ValuesSelect {
+        try consumeKeyword("VALUES")
+        var rows: [[any Expression]] = []
+
+        repeat {
+            try consumeSymbol("(")
+            var row: [any Expression] = []
+            if match(symbol: ")") == false {
+                while true {
+                    row.append(try parseExpression())
+                    if match(symbol: ",") {
+                        continue
+                    }
+                    try consumeSymbol(")")
+                    break
+                }
+            }
+            rows.append(row)
+        } while match(symbol: ",")
+
+        return ValuesSelect(rows: rows)
     }
 
     private mutating func parsePlainSelect() throws -> PlainSelect {
         try consumeKeyword("SELECT")
+        let isDistinct = matchKeyword("DISTINCT")
         let selectItems = try parseSelectItems()
         try consumeKeyword("FROM")
         let from = try parseFromItem()
         let joins = try parseJoins()
         let whereExpression = try parseWhereClauseIfPresent()
+        let groupByExpressions = try parseGroupByClauseIfPresent()
+        let havingExpression = try parseHavingClauseIfPresent()
+        let qualifyExpression = try parseQualifyClauseIfPresent()
+        let orderBy = try parseOrderByClauseIfPresent()
+        let limit = try parseLimitClauseIfPresent()
+        let offset = try parseOffsetClauseIfPresent()
 
         return PlainSelect(
+            isDistinct: isDistinct,
             selectItems: selectItems,
             from: from,
             joins: joins,
-            whereExpression: whereExpression
+            whereExpression: whereExpression,
+            groupByExpressions: groupByExpressions,
+            havingExpression: havingExpression,
+            qualifyExpression: qualifyExpression,
+            orderBy: orderBy,
+            limit: limit,
+            offset: offset
         )
     }
 
@@ -135,8 +176,8 @@ struct SelectCoreParser {
         }
 
         let keywordBoundary = [
-            "FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON",
-            "UNION", "INTERSECT", "EXCEPT", "ALL"
+            "FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON", "USING", "APPLY",
+            "UNION", "INTERSECT", "EXCEPT", "ALL", "GROUP", "HAVING", "QUALIFY", "ORDER", "LIMIT", "OFFSET"
         ]
         if keywordBoundary.contains(next.uppercased) {
             return nil
@@ -147,17 +188,19 @@ struct SelectCoreParser {
     }
 
     private mutating func parseFromItem() throws -> any FromItem {
+        let isLateral = matchKeyword("LATERAL")
+
         if match(symbol: "(") {
             let nestedTokens = try collectBalancedParenthesisContent()
             var nested = SelectCoreParser(tokens: nestedTokens, options: options)
             let nestedStatement = try nested.parseStatement()
             let alias = try parseAliasIfPresent()
-            return SubqueryFromItem(statement: nestedStatement, alias: alias)
+            return SubqueryFromItem(statement: nestedStatement, alias: alias, isLateral: isLateral)
         }
 
         let tableName = try consumeIdentifier()
         let alias = try parseAliasIfPresent()
-        return TableFromItem(name: tableName, alias: alias)
+        return TableFromItem(name: tableName, alias: alias, isLateral: isLateral)
     }
 
     private mutating func parseJoins() throws -> [Join] {
@@ -165,36 +208,73 @@ struct SelectCoreParser {
 
         while true {
             let joinType: Join.JoinType
+            let isNatural: Bool
             if matchKeyword("INNER") {
                 try consumeKeyword("JOIN")
                 joinType = .inner
+                isNatural = false
             } else if matchKeyword("LEFT") {
                 try consumeKeyword("JOIN")
                 joinType = .left
+                isNatural = false
             } else if matchKeyword("RIGHT") {
                 try consumeKeyword("JOIN")
                 joinType = .right
+                isNatural = false
             } else if matchKeyword("FULL") {
                 try consumeKeyword("JOIN")
                 joinType = .full
+                isNatural = false
             } else if matchKeyword("CROSS") {
-                try consumeKeyword("JOIN")
-                joinType = .cross
+                if matchKeyword("APPLY") {
+                    joinType = .crossApply
+                } else {
+                    try consumeKeyword("JOIN")
+                    joinType = .cross
+                }
+                isNatural = false
+            } else if matchKeyword("OUTER") {
+                try consumeKeyword("APPLY")
+                joinType = .outerApply
+                isNatural = false
+            } else if matchKeyword("NATURAL") {
+                isNatural = true
+                if matchKeyword("LEFT") {
+                    try consumeKeyword("JOIN")
+                    joinType = .left
+                } else if matchKeyword("RIGHT") {
+                    try consumeKeyword("JOIN")
+                    joinType = .right
+                } else if matchKeyword("FULL") {
+                    try consumeKeyword("JOIN")
+                    joinType = .full
+                } else {
+                    try consumeKeyword("JOIN")
+                    joinType = .inner
+                }
             } else if matchKeyword("JOIN") {
                 joinType = .inner
+                isNatural = false
             } else {
                 break
             }
 
             let fromItem = try parseFromItem()
             let onExpression: (any Expression)?
-            if joinType != .cross && matchKeyword("ON") {
+            let usingColumns: [String]
+            if joinType != .cross && joinType != .crossApply && joinType != .outerApply && matchKeyword("ON") {
                 onExpression = try parseExpression()
+                usingColumns = []
+            } else if joinType != .crossApply && joinType != .outerApply && matchKeyword("USING") {
+                try consumeSymbol("(")
+                usingColumns = try parseIdentifierListUntilRightParen()
+                onExpression = nil
             } else {
                 onExpression = nil
+                usingColumns = []
             }
 
-            joins.append(Join(type: joinType, fromItem: fromItem, onExpression: onExpression))
+            joins.append(Join(type: joinType, isNatural: isNatural, fromItem: fromItem, onExpression: onExpression, usingColumns: usingColumns))
         }
 
         return joins
@@ -206,6 +286,90 @@ struct SelectCoreParser {
         }
 
         return try parseExpression()
+    }
+
+    private mutating func parseGroupByClauseIfPresent() throws -> [any Expression] {
+        guard matchKeyword("GROUP") else {
+            return []
+        }
+
+        try consumeKeyword("BY")
+
+        var expressions: [any Expression] = []
+        while true {
+            expressions.append(try parseExpression())
+            if match(symbol: ",") {
+                continue
+            }
+            break
+        }
+
+        return expressions
+    }
+
+    private mutating func parseHavingClauseIfPresent() throws -> (any Expression)? {
+        guard matchKeyword("HAVING") else {
+            return nil
+        }
+
+        return try parseExpression()
+    }
+
+    private mutating func parseQualifyClauseIfPresent() throws -> (any Expression)? {
+        guard matchKeyword("QUALIFY") else {
+            return nil
+        }
+
+        return try parseExpression()
+    }
+
+    private mutating func parseOrderByClauseIfPresent() throws -> [OrderByElement] {
+        guard matchKeyword("ORDER") else {
+            return []
+        }
+
+        try consumeKeyword("BY")
+
+        return try parseOrderByElements()
+    }
+
+    private mutating func parseOrderByElements() throws -> [OrderByElement] {
+        
+        var elements: [OrderByElement] = []
+        while true {
+            let expression = try parseExpression()
+            let direction: OrderByElement.Direction?
+            if matchKeyword("ASC") {
+                direction = .ascending
+            } else if matchKeyword("DESC") {
+                direction = .descending
+            } else {
+                direction = nil
+            }
+            elements.append(OrderByElement(expression: expression, direction: direction))
+            if match(symbol: ",") {
+                continue
+            }
+            break
+        }
+
+        return elements
+    }
+
+    private mutating func parseLimitClauseIfPresent() throws -> Int? {
+        guard matchKeyword("LIMIT") else {
+            return nil
+        }
+
+        return try consumeIntegerLiteral()
+    }
+
+    private mutating func parseOffsetClauseIfPresent() throws -> Int? {
+        guard matchKeyword("OFFSET") else {
+            return nil
+        }
+
+        return try consumeIntegerLiteral()
     }
 
     private mutating func parseExpression() throws -> any Expression {
@@ -222,29 +386,60 @@ struct SelectCoreParser {
     }
 
     private mutating func parseAndExpression() throws -> any Expression {
-        var expression = try parseEqualityExpression()
+        var expression = try parseComparisonExpression()
         while matchKeyword("AND") {
-            let rhs = try parseEqualityExpression()
+            let rhs = try parseComparisonExpression()
             expression = BinaryExpression(left: expression, operator: .and, right: rhs)
         }
         return expression
     }
 
-    private mutating func parseEqualityExpression() throws -> any Expression {
+    private mutating func parseComparisonExpression() throws -> any Expression {
         var expression = try parseAdditiveExpression()
 
         while true {
             if match(symbol: "=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .equals, right: rhs)
+            } else if match(symbol: "<") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .lessThan, right: rhs)
+            } else if match(symbol: "<=") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .lessThanOrEquals, right: rhs)
+            } else if match(symbol: ">") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .greaterThan, right: rhs)
+            } else if match(symbol: ">=") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .greaterThanOrEquals, right: rhs)
             } else if options.dialectFeatures.contains(.postgres)
                 && options.experimentalFeatures.contains(.postgresIlike)
                 && matchKeyword("ILIKE") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .ilike, right: rhs)
+            } else if matchKeyword("LIKE") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .like, right: rhs)
+            } else if matchKeyword("NOT") && matchKeyword("LIKE") {
+                let rhs = try parseAdditiveExpression()
+                let likeExpression = BinaryExpression(left: expression, operator: .like, right: rhs)
+                expression = UnaryExpression(operator: .not, expression: likeExpression)
             } else if match(symbol: "<>") || match(symbol: "!=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .notEquals, right: rhs)
+            } else if matchKeyword("IS") {
+                let isNegated = matchKeyword("NOT")
+                try consumeKeyword("NULL")
+                expression = IsNullExpression(expression: expression, isNegated: isNegated)
+            } else if matchKeyword("NOT") && matchKeyword("IN") {
+                expression = try parseInListExpression(expression: expression, isNegated: true)
+            } else if matchKeyword("IN") {
+                expression = try parseInListExpression(expression: expression)
+            } else if matchKeyword("NOT") && matchKeyword("BETWEEN") {
+                expression = try parseBetweenExpression(expression: expression, isNegated: true)
+            } else if matchKeyword("BETWEEN") {
+                expression = try parseBetweenExpression(expression: expression)
             } else {
                 break
             }
@@ -299,13 +494,31 @@ struct SelectCoreParser {
         if matchKeyword("NOT") {
             return UnaryExpression(operator: .not, expression: try parseUnaryExpression())
         }
+        if matchKeyword("EXISTS") {
+            try consumeSymbol("(")
+            let nestedTokens = try collectBalancedParenthesisContent()
+            var nested = SelectCoreParser(tokens: nestedTokens, options: options)
+            let select = try nested.parseStatement()
+            return ExistsExpression(statement: select)
+        }
 
-        return try parsePrimaryExpression()
+        return try parsePostfixExpression()
+    }
+
+    private mutating func parsePostfixExpression() throws -> any Expression {
+        var expression = try parsePrimaryExpression()
+
+        while match(symbol: "::") {
+            let typeName = try parseTypeName()
+            expression = CastExpression(expression: expression, typeName: typeName, style: .postgres)
+        }
+
+        return expression
     }
 
     private mutating func parsePrimaryExpression() throws -> any Expression {
         if match(symbol: "(") {
-            if checkKeyword("SELECT") || checkKeyword("WITH") {
+            if checkKeyword("SELECT") || checkKeyword("WITH") || checkKeyword("VALUES") {
                 let nestedTokens = try collectBalancedParenthesisContent()
                 var nested = SelectCoreParser(tokens: nestedTokens, options: options)
                 let select = try nested.parseStatement()
@@ -325,6 +538,22 @@ struct SelectCoreParser {
             return StringLiteralExpression(value: stringValue)
         }
 
+        if matchKeyword("NULL") {
+            return NullLiteralExpression()
+        }
+
+        if let placeholder = consumePlaceholderIfPresent() {
+            return PlaceholderExpression(token: placeholder)
+        }
+
+        if matchKeyword("CASE") {
+            return try parseCaseExpression()
+        }
+
+        if matchKeyword("CAST") {
+            return try parseCastExpression()
+        }
+
         let identifier = try consumeIdentifier()
         if match(symbol: "(") {
             var args: [any Expression] = []
@@ -339,10 +568,121 @@ struct SelectCoreParser {
                     break
                 }
             }
-            return FunctionExpression(name: identifier, arguments: args)
+            return FunctionExpression(name: identifier, arguments: args, overClause: try parseOverClauseIfPresent())
         }
 
         return IdentifierExpression(name: identifier)
+    }
+
+    private mutating func parseOverClauseIfPresent() throws -> WindowSpecification? {
+        guard matchKeyword("OVER") else {
+            return nil
+        }
+
+        if match(symbol: "(") == false {
+            return WindowSpecification(namedWindow: try consumeIdentifier())
+        }
+
+        var partitionBy: [any Expression] = []
+        var orderBy: [OrderByElement] = []
+
+        if matchKeyword("PARTITION") {
+            try consumeKeyword("BY")
+            while true {
+                partitionBy.append(try parseExpression())
+                if match(symbol: ",") {
+                    continue
+                }
+                break
+            }
+        }
+
+        if matchKeyword("ORDER") {
+            try consumeKeyword("BY")
+            orderBy = try parseOrderByElements()
+        }
+
+        try consumeSymbol(")")
+        return WindowSpecification(partitionBy: partitionBy, orderBy: orderBy)
+    }
+
+    private mutating func parseInListExpression(expression: any Expression, isNegated: Bool = false) throws -> any Expression {
+        try consumeSymbol("(")
+        var values: [any Expression] = []
+        if match(symbol: ")") == false {
+            while true {
+                values.append(try parseExpression())
+                if match(symbol: ",") {
+                    continue
+                }
+                try consumeSymbol(")")
+                break
+            }
+        }
+        return InListExpression(expression: expression, values: values, isNegated: isNegated)
+    }
+
+    private mutating func parseBetweenExpression(expression: any Expression, isNegated: Bool = false) throws -> any Expression {
+        let lowerBound = try parseAdditiveExpression()
+        try consumeKeyword("AND")
+        let upperBound = try parseAdditiveExpression()
+        return BetweenExpression(expression: expression, lowerBound: lowerBound, upperBound: upperBound, isNegated: isNegated)
+    }
+
+    private mutating func parseCaseExpression() throws -> any Expression {
+        let baseExpression: (any Expression)?
+        if checkKeyword("WHEN") {
+            baseExpression = nil
+        } else {
+            baseExpression = try parseExpression()
+        }
+
+        var whenClauses: [CaseWhenClause] = []
+        while matchKeyword("WHEN") {
+            let condition = try parseExpression()
+            try consumeKeyword("THEN")
+            let result = try parseExpression()
+            whenClauses.append(CaseWhenClause(condition: condition, result: result))
+        }
+
+        let elseExpression: (any Expression)?
+        if matchKeyword("ELSE") {
+            elseExpression = try parseExpression()
+        } else {
+            elseExpression = nil
+        }
+
+        try consumeKeyword("END")
+        return CaseExpression(baseExpression: baseExpression, whenClauses: whenClauses, elseExpression: elseExpression)
+    }
+
+    private mutating func parseCastExpression() throws -> any Expression {
+        try consumeSymbol("(")
+        let expression = try parseExpression()
+        try consumeKeyword("AS")
+        let typeName = try parseTypeName()
+        try consumeSymbol(")")
+        return CastExpression(expression: expression, typeName: typeName)
+    }
+
+    private mutating func parseTypeName() throws -> String {
+        var typeName = try consumeIdentifier()
+
+        if match(symbol: "(") {
+            var components: [String] = []
+            while true {
+                guard let token = advance() else {
+                    throw SelectParseFailure.expected("type modifier")
+                }
+                if token.kind == .symbol, token.text == ")" {
+                    break
+                }
+                components.append(token.text)
+            }
+            typeName += "(\(components.joined(separator: " ")))"
+        }
+
+        return typeName
     }
 
     private mutating func ensureAtEnd() throws {
@@ -381,6 +721,18 @@ struct SelectCoreParser {
         return identifier
     }
 
+    private mutating func parseIdentifierListUntilRightParen() throws -> [String] {
+        var identifiers: [String] = []
+        while true {
+            identifiers.append(try consumeIdentifier())
+            if match(symbol: ",") {
+                continue
+            }
+            try consumeSymbol(")")
+            return identifiers
+        }
+    }
+
     private mutating func consumeNumberIfPresent() -> Double? {
         guard let token = peek(), token.kind == .number else {
             return nil
@@ -389,8 +741,24 @@ struct SelectCoreParser {
         return Double(token.text)
     }
 
+    private mutating func consumeIntegerLiteral() throws -> Int {
+        guard let token = peek(), token.kind == .number, let value = Int(token.text) else {
+            throw SelectParseFailure.expected("integer")
+        }
+        _ = advance()
+        return value
+    }
+
     private mutating func consumeStringIfPresent() -> String? {
         guard let token = peek(), token.kind == .string else {
+            return nil
+        }
+        _ = advance()
+        return token.text
+    }
+
+    private mutating func consumePlaceholderIfPresent() -> String? {
+        guard let token = peek(), token.kind == .placeholder else {
             return nil
         }
         _ = advance()
@@ -463,11 +831,12 @@ private enum SelectParseFailure: Error {
     case unexpectedToken(String)
 }
 
-private struct Token {
+    private struct Token {
     enum Kind {
         case identifier
         case number
         case string
+        case placeholder
         case symbol
     }
 
@@ -535,6 +904,19 @@ private struct Tokenizer {
                 continue
             }
 
+            if character == "?" {
+                tokens.append(Token(text: String(character), kind: .placeholder))
+                index = sql.index(after: index)
+                continue
+            }
+
+            if character == "$" {
+                let (placeholder, nextIndex) = consumePlaceholder(from: index)
+                tokens.append(Token(text: placeholder, kind: .placeholder))
+                index = nextIndex
+                continue
+            }
+
             if character.isLetter || character == "_" {
                 let (identifier, nextIndex) = consumeIdentifier(from: index)
                 tokens.append(Token(text: identifier, kind: .identifier))
@@ -545,14 +927,14 @@ private struct Tokenizer {
             let nextIndex = sql.index(after: index)
             if nextIndex < sql.endIndex {
                 let pair = String([character, sql[nextIndex]])
-                if ["<>", "!=", ">=", "<=", "||"].contains(pair) {
+                if ["<>", "!=", ">=", "<=", "||", "::"].contains(pair) {
                     tokens.append(Token(text: pair, kind: .symbol))
                     index = sql.index(after: nextIndex)
                     continue
                 }
             }
 
-            if [",", "*", "(", ")", "=", "+", "-", "/", "."].contains(character) {
+            if [",", "*", "(", ")", "=", "+", "-", "/", ".", "<", ">"].contains(character) {
                 tokens.append(Token(text: String(character), kind: .symbol))
                 index = nextIndex
                 continue
@@ -597,6 +979,14 @@ private struct Tokenizer {
             break
         }
 
+        return (String(sql[start..<current]), current)
+    }
+
+    private func consumePlaceholder(from start: String.Index) -> (String, String.Index) {
+        var current = sql.index(after: start)
+        while current < sql.endIndex, sql[current].isNumber {
+            current = sql.index(after: current)
+        }
         return (String(sql[start..<current]), current)
     }
 

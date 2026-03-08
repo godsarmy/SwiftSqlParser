@@ -30,27 +30,68 @@ struct DdlParser {
         throw DdlParseFailure.expected("DDL statement")
     }
 
-    private mutating func parseCreate() throws -> CreateTableStatement {
-        try consumeKeyword("TABLE")
+    private mutating func parseCreate() throws -> any Statement {
+        let isUnique = matchKeyword("UNIQUE")
+
+        if matchKeyword("TABLE") {
+            return try parseCreateTable()
+        }
+
+        if isUnique || matchKeyword("INDEX") {
+            if isUnique {
+                try consumeKeyword("INDEX")
+            }
+            return try parseCreateIndex(isUnique: isUnique)
+        }
+
+        if matchKeyword("VIEW") {
+            return try parseCreateView()
+        }
+
+        throw DdlParseFailure.expected("TABLE, INDEX, or VIEW")
+    }
+
+    private mutating func parseCreateTable() throws -> CreateTableStatement {
         let table = try consumeIdentifier()
         try consumeSymbol("(")
 
         var columns: [TableColumnDefinition] = []
+        var constraints: [TableConstraintDefinition] = []
+
         while true {
-            let columnName = try consumeIdentifier()
-            let typeName = try consumeIdentifier()
-            columns.append(TableColumnDefinition(name: columnName, typeName: typeName))
+            if checkKeyword("CONSTRAINT") || checkKeyword("PRIMARY") || checkKeyword("FOREIGN") || checkKeyword("CHECK") {
+                constraints.append(try parseTableConstraint())
+            } else {
+                columns.append(try parseColumnDefinition())
+            }
 
             if match(symbol: ",") {
                 continue
             }
-
             break
         }
 
         try consumeSymbol(")")
         try ensureAtEnd()
-        return CreateTableStatement(table: table, columns: columns)
+        return CreateTableStatement(table: table, columns: columns, constraints: constraints)
+    }
+
+    private mutating func parseCreateIndex(isUnique: Bool) throws -> CreateIndexStatement {
+        let name = try consumeIdentifier()
+        try consumeKeyword("ON")
+        let table = try consumeIdentifier()
+        try consumeSymbol("(")
+        let columns = try parseIdentifierListUntilRightParen()
+        try ensureAtEnd()
+        return CreateIndexStatement(name: name, table: table, columns: columns, isUnique: isUnique)
+    }
+
+    private mutating func parseCreateView() throws -> CreateViewStatement {
+        let name = try consumeIdentifier()
+        try consumeKeyword("AS")
+        let selectSql = collectRemainingSql()
+        let select = try SqlParser().parseStatement(selectSql, options: options)
+        return CreateViewStatement(name: name, select: select)
     }
 
     private mutating func parseAlter() throws -> AlterTableStatement {
@@ -58,21 +99,40 @@ struct DdlParser {
         let table = try consumeIdentifier()
 
         if matchKeyword("ADD") {
-            _ = matchKeyword("COLUMN")
-            let columnName = try consumeIdentifier()
-            let typeName = try consumeIdentifier()
-            try ensureAtEnd()
-            return AlterTableStatement(
-                table: table,
-                operation: .addColumn(TableColumnDefinition(name: columnName, typeName: typeName))
-            )
-        }
+            if checkKeyword("CONSTRAINT") || checkKeyword("PRIMARY") || checkKeyword("FOREIGN") || checkKeyword("CHECK") {
+                let constraint = try parseTableConstraint()
+                try ensureAtEnd()
+                return AlterTableStatement(table: table, operation: .addConstraint(constraint))
+            }
 
-        if matchKeyword("DROP") {
             _ = matchKeyword("COLUMN")
+            let column = try parseColumnDefinition()
+            try ensureAtEnd()
+            return AlterTableStatement(table: table, operation: .addColumn(column))
+        } else if matchKeyword("DROP") {
+            _ = matchKeyword("COLUMN")
+            if matchKeyword("CONSTRAINT") {
+                let constraintName = try consumeIdentifier()
+                try ensureAtEnd()
+                return AlterTableStatement(table: table, operation: .dropConstraint(constraintName))
+            }
+
             let columnName = try consumeIdentifier()
             try ensureAtEnd()
             return AlterTableStatement(table: table, operation: .dropColumn(columnName))
+        } else if matchKeyword("RENAME") {
+            if matchKeyword("COLUMN") {
+                let oldName = try consumeIdentifier()
+                try consumeKeyword("TO")
+                let newName = try consumeIdentifier()
+                try ensureAtEnd()
+                return AlterTableStatement(table: table, operation: .renameColumn(oldName: oldName, newName: newName))
+            }
+
+            try consumeKeyword("TO")
+            let newName = try consumeIdentifier()
+            try ensureAtEnd()
+            return AlterTableStatement(table: table, operation: .renameTable(newName))
         }
 
         throw DdlParseFailure.expected("ALTER TABLE operation")
@@ -90,6 +150,145 @@ struct DdlParser {
         let table = try consumeIdentifier()
         try ensureAtEnd()
         return TruncateTableStatement(table: table)
+    }
+
+    private mutating func parseColumnDefinition() throws -> TableColumnDefinition {
+        let name = try consumeIdentifier()
+        let typeName = try parseTypeName()
+        var defaultExpression: (any Expression)?
+        var constraints: [ColumnConstraint] = []
+
+        while let token = peek(), isTerminatorToken(token) == false {
+            if matchKeyword("DEFAULT") {
+                defaultExpression = RawExpression(sql: try collectExpressionUntilConstraintBoundary())
+            } else if matchKeyword("NOT") {
+                try consumeKeyword("NULL")
+                constraints.append(.notNull)
+            } else if matchKeyword("PRIMARY") {
+                try consumeKeyword("KEY")
+                constraints.append(.primaryKey)
+            } else if matchKeyword("UNIQUE") {
+                constraints.append(.unique)
+            } else if matchKeyword("REFERENCES") {
+                let table = try consumeIdentifier()
+                var columns: [String] = []
+                if match(symbol: "(") {
+                    columns = try parseIdentifierListUntilRightParen()
+                }
+                constraints.append(.references(table: table, columns: columns))
+            } else if matchKeyword("CHECK") {
+                try consumeSymbol("(")
+                constraints.append(.check(RawExpression(sql: try collectBalancedParenthesisSql())))
+            } else {
+                break
+            }
+        }
+
+        return TableColumnDefinition(name: name, typeName: typeName, defaultExpression: defaultExpression, constraints: constraints)
+    }
+
+    private mutating func parseTableConstraint() throws -> TableConstraintDefinition {
+        let name: String?
+        if matchKeyword("CONSTRAINT") {
+            name = try consumeIdentifier()
+        } else {
+            name = nil
+        }
+
+        let kind: TableConstraintKind
+        if matchKeyword("PRIMARY") {
+            try consumeKeyword("KEY")
+            try consumeSymbol("(")
+            kind = .primaryKey(columns: try parseIdentifierListUntilRightParen())
+        } else if matchKeyword("FOREIGN") {
+            try consumeKeyword("KEY")
+            try consumeSymbol("(")
+            let columns = try parseIdentifierListUntilRightParen()
+            try consumeKeyword("REFERENCES")
+            let refTable = try consumeIdentifier()
+            try consumeSymbol("(")
+            let refColumns = try parseIdentifierListUntilRightParen()
+            kind = .foreignKey(columns: columns, referencesTable: refTable, referencesColumns: refColumns)
+        } else if matchKeyword("CHECK") {
+            try consumeSymbol("(")
+            kind = .check(RawExpression(sql: try collectBalancedParenthesisSql()))
+        } else {
+            throw DdlParseFailure.expected("table constraint")
+        }
+
+        return TableConstraintDefinition(name: name, kind: kind)
+    }
+
+    private mutating func parseIdentifierListUntilRightParen() throws -> [String] {
+        var identifiers: [String] = []
+        while true {
+            identifiers.append(try consumeIdentifier())
+            if match(symbol: ",") {
+                continue
+            }
+            try consumeSymbol(")")
+            return identifiers
+        }
+    }
+
+    private mutating func parseTypeName() throws -> String {
+        var typeName = try consumeIdentifier()
+        if match(symbol: "(") {
+            typeName += "(\(try collectBalancedParenthesisSql()))"
+        }
+        return typeName
+    }
+
+    private mutating func collectBalancedParenthesisSql() throws -> String {
+        var depth = 1
+        var parts: [String] = []
+
+        while let token = advance() {
+            if token.kind == .symbol, token.text == "(" {
+                depth += 1
+            } else if token.kind == .symbol, token.text == ")" {
+                depth -= 1
+                if depth == 0 {
+                    return parts.joined(separator: " ")
+                }
+            }
+            parts.append(token.sqlText)
+        }
+
+        throw DdlParseFailure.expected(")")
+    }
+
+    private mutating func collectExpressionUntilConstraintBoundary() throws -> String {
+        var depth = 0
+        var parts: [String] = []
+
+        while let token = peek() {
+            if depth == 0 && (isTerminatorToken(token) || startsColumnConstraint()) {
+                break
+            }
+            _ = advance()
+            if token.kind == .symbol, token.text == "(" {
+                depth += 1
+            } else if token.kind == .symbol, token.text == ")" {
+                depth -= 1
+            }
+            parts.append(token.sqlText)
+        }
+
+        return parts.joined(separator: " ")
+    }
+
+    private func collectRemainingSql() -> String {
+        let remaining = tokens[index...].map(\.sqlText).joined(separator: " ")
+        return remaining
+    }
+
+    private func isTerminatorToken(_ token: Token) -> Bool {
+        token.kind == .symbol && (token.text == "," || token.text == ")")
+    }
+
+    private func startsColumnConstraint() -> Bool {
+        checkKeyword("NOT") || checkKeyword("PRIMARY") || checkKeyword("UNIQUE") || checkKeyword("REFERENCES") || checkKeyword("CHECK")
     }
 
     private mutating func ensureAtEnd() throws {
@@ -186,6 +385,14 @@ private struct Token {
     let kind: Kind
 
     var uppercased: String { text.uppercased() }
+    var sqlText: String {
+        switch kind {
+        case .string:
+            return "'\(text.replacingOccurrences(of: "'", with: "''"))'"
+        default:
+            return text
+        }
+    }
 }
 
 private struct Tokenizer {
@@ -210,7 +417,8 @@ private struct Tokenizer {
             }
 
             if character == "'" {
-                let (_, nextIndex) = try consumeString(from: index)
+                let (value, nextIndex) = try consumeString(from: index)
+                tokens.append(Token(text: value, kind: .string))
                 index = nextIndex
                 continue
             }
@@ -239,7 +447,8 @@ private struct Tokenizer {
             }
 
             if character.isNumber {
-                let (_, nextIndex) = consumeNumber(from: index)
+                let (number, nextIndex) = consumeNumber(from: index)
+                tokens.append(Token(text: number, kind: .number))
                 index = nextIndex
                 continue
             }
@@ -252,7 +461,16 @@ private struct Tokenizer {
             }
 
             let nextIndex = sql.index(after: index)
-            if [",", "(", ")", "."].contains(character) {
+            if nextIndex < sql.endIndex {
+                let pair = String([character, sql[nextIndex]])
+                if ["<>", "!=", ">=", "<=", "::"].contains(pair) {
+                    tokens.append(Token(text: pair, kind: .symbol))
+                    index = sql.index(after: nextIndex)
+                    continue
+                }
+            }
+
+            if [",", "(", ")", ".", "=", "<", ">", "+", "-", "*", "/"].contains(character) {
                 tokens.append(Token(text: String(character), kind: .symbol))
                 index = nextIndex
                 continue
@@ -287,16 +505,19 @@ private struct Tokenizer {
 
     private func consumeString(from start: String.Index) throws -> (String, String.Index) {
         var current = sql.index(after: start)
+        var value = ""
         while current < sql.endIndex {
             let character = sql[current]
             if character == "'" {
                 let next = sql.index(after: current)
                 if next < sql.endIndex, sql[next] == "'" {
+                    value.append("'")
                     current = sql.index(after: next)
                     continue
                 }
-                return ("", next)
+                return (value, next)
             }
+            value.append(character)
             current = sql.index(after: current)
         }
 

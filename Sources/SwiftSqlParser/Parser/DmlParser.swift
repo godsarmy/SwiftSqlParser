@@ -35,23 +35,100 @@ struct DmlParser {
             columns = try parseIdentifierListUntilRightParen()
         }
 
-        try consumeKeyword("VALUES")
-        var rows: [[any Expression]] = []
+        let source: InsertStatement.Source
+        if matchKeyword("DEFAULT") {
+            try consumeKeyword("VALUES")
+            source = .defaultValues
+        } else if matchKeyword("VALUES") {
+            var rows: [[any Expression]] = []
 
-        repeat {
-            try consumeSymbol("(")
-            let values = try parseExpressionListUntilRightParen()
-            rows.append(values)
-        } while match(symbol: ",")
+            repeat {
+                try consumeSymbol("(")
+                let values = try parseExpressionListUntilRightParen()
+                rows.append(values)
+            } while match(symbol: ",")
+
+            source = .values(rows)
+        } else {
+            source = .select(try parseTrailingSelectStatement(until: [["ON", "CONFLICT"], ["ON", "DUPLICATE", "KEY", "UPDATE"], ["RETURNING"]]))
+        }
+
+        let onConflict = try parseOnConflictClauseIfPresent()
+        let onDuplicateKeyAssignments = try parseOnDuplicateKeyUpdateIfPresent()
+        let returningClause = try parseReturningClauseIfPresent()
 
         try ensureAtEnd()
-        return InsertStatement(table: table, columns: columns, values: rows)
+        return InsertStatement(
+            table: table,
+            columns: columns,
+            source: source,
+            onConflict: onConflict,
+            onDuplicateKeyAssignments: onDuplicateKeyAssignments,
+            returningClause: returningClause
+        )
     }
 
     private mutating func parseUpdate() throws -> UpdateStatement {
         let table = try consumeIdentifier()
         try consumeKeyword("SET")
 
+        let assignments = try parseAssignments()
+
+        let from: (any FromItem)?
+        let fromJoins: [Join]
+        if matchKeyword("FROM") {
+            from = try parseFromItem()
+            fromJoins = try parseJoins()
+        } else {
+            from = nil
+            fromJoins = []
+        }
+
+        let whereExpression: (any Expression)?
+        if matchKeyword("WHERE") {
+            whereExpression = try parseExpression()
+        } else {
+            whereExpression = nil
+        }
+
+        let returningClause = try parseReturningClauseIfPresent()
+
+        try ensureAtEnd()
+        return UpdateStatement(
+            table: table,
+            assignments: assignments,
+            from: from,
+            fromJoins: fromJoins,
+            whereExpression: whereExpression,
+            returningClause: returningClause
+        )
+    }
+
+    private mutating func parseDelete() throws -> DeleteStatement {
+        try consumeKeyword("FROM")
+        let table = try consumeIdentifier()
+
+        let usingItems = try parseUsingClauseIfPresent()
+
+        let whereExpression: (any Expression)?
+        if matchKeyword("WHERE") {
+            whereExpression = try parseExpression()
+        } else {
+            whereExpression = nil
+        }
+
+        let returningClause = try parseReturningClauseIfPresent()
+
+        try ensureAtEnd()
+        return DeleteStatement(
+            table: table,
+            usingItems: usingItems,
+            whereExpression: whereExpression,
+            returningClause: returningClause
+        )
+    }
+
+    private mutating func parseAssignments() throws -> [UpdateAssignment] {
         var assignments: [UpdateAssignment] = []
         while true {
             let column = try consumeIdentifier()
@@ -65,22 +142,36 @@ struct DmlParser {
 
             break
         }
-
-        let whereExpression: (any Expression)?
-        if matchKeyword("WHERE") {
-            whereExpression = try parseExpression()
-        } else {
-            whereExpression = nil
-        }
-
-        try ensureAtEnd()
-        return UpdateStatement(table: table, assignments: assignments, whereExpression: whereExpression)
+        return assignments
     }
 
-    private mutating func parseDelete() throws -> DeleteStatement {
-        try consumeKeyword("FROM")
-        let table = try consumeIdentifier()
+    private mutating func parseReturningClauseIfPresent() throws -> ReturningClause? {
+        guard matchKeyword("RETURNING") else {
+            return nil
+        }
+        return ReturningClause(items: try parseSelectItemsUntilBoundary())
+    }
 
+    private mutating func parseOnConflictClauseIfPresent() throws -> InsertOnConflictClause? {
+        guard checkKeywordSequence(["ON", "CONFLICT"]) else {
+            return nil
+        }
+        try consumeKeyword("ON")
+        try consumeKeyword("CONFLICT")
+
+        var targetColumns: [String] = []
+        if match(symbol: "(") {
+            targetColumns = try parseIdentifierListUntilRightParen()
+        }
+
+        try consumeKeyword("DO")
+        if matchKeyword("NOTHING") {
+            return InsertOnConflictClause(targetColumns: targetColumns, action: .doNothing)
+        }
+
+        try consumeKeyword("UPDATE")
+        try consumeKeyword("SET")
+        let assignments = try parseAssignments()
         let whereExpression: (any Expression)?
         if matchKeyword("WHERE") {
             whereExpression = try parseExpression()
@@ -88,8 +179,184 @@ struct DmlParser {
             whereExpression = nil
         }
 
-        try ensureAtEnd()
-        return DeleteStatement(table: table, whereExpression: whereExpression)
+        return InsertOnConflictClause(
+            targetColumns: targetColumns,
+            action: .doUpdate(assignments: assignments, whereExpression: whereExpression)
+        )
+    }
+
+    private mutating func parseOnDuplicateKeyUpdateIfPresent() throws -> [UpdateAssignment] {
+        guard checkKeywordSequence(["ON", "DUPLICATE", "KEY", "UPDATE"]) else {
+            return []
+        }
+        try consumeKeyword("ON")
+        try consumeKeyword("DUPLICATE")
+        try consumeKeyword("KEY")
+        try consumeKeyword("UPDATE")
+        return try parseAssignments()
+    }
+
+    private mutating func parseUsingClauseIfPresent() throws -> [any FromItem] {
+        guard matchKeyword("USING") else {
+            return []
+        }
+
+        var items: [any FromItem] = []
+        while true {
+            items.append(try parseFromItem())
+            if match(symbol: ",") {
+                continue
+            }
+            break
+        }
+        return items
+    }
+
+    private mutating func parseSelectItemsUntilBoundary() throws -> [any SelectItem] {
+        var items: [any SelectItem] = []
+
+        while true {
+            if match(symbol: "*") {
+                items.append(AllColumnsSelectItem())
+            } else {
+                let expression = try parseExpression()
+                let alias = try parseAliasIfPresent()
+                items.append(ExpressionSelectItem(expression: expression, alias: alias))
+            }
+
+            if match(symbol: ",") {
+                continue
+            }
+            break
+        }
+
+        return items
+    }
+
+    private mutating func parseAliasIfPresent() throws -> String? {
+        if matchKeyword("AS") {
+            return try consumeIdentifier()
+        }
+
+        guard let next = peek(), next.kind == .identifier else {
+            return nil
+        }
+
+        let boundaryKeywords = [
+            "FROM", "WHERE", "GROUP", "HAVING", "ORDER", "LIMIT", "OFFSET", "ON", "RETURNING",
+            "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "USING"
+        ]
+        if boundaryKeywords.contains(next.uppercased) {
+            return nil
+        }
+
+        _ = advance()
+        return next.text
+    }
+
+    private mutating func parseFromItem() throws -> any FromItem {
+        if match(symbol: "(") {
+            let nestedSql = try collectBalancedParenthesisText()
+            let nestedStatement = try SqlParser().parseStatement(nestedSql, options: options)
+            let alias = try parseAliasIfPresent()
+            return SubqueryFromItem(statement: nestedStatement, alias: alias)
+        }
+
+        let tableName = try consumeIdentifier()
+        let alias = try parseAliasIfPresent()
+        return TableFromItem(name: tableName, alias: alias)
+    }
+
+    private mutating func parseJoins() throws -> [Join] {
+        var joins: [Join] = []
+
+        while true {
+            let joinType: Join.JoinType
+            if matchKeyword("INNER") {
+                try consumeKeyword("JOIN")
+                joinType = .inner
+            } else if matchKeyword("LEFT") {
+                try consumeKeyword("JOIN")
+                joinType = .left
+            } else if matchKeyword("RIGHT") {
+                try consumeKeyword("JOIN")
+                joinType = .right
+            } else if matchKeyword("FULL") {
+                try consumeKeyword("JOIN")
+                joinType = .full
+            } else if matchKeyword("CROSS") {
+                try consumeKeyword("JOIN")
+                joinType = .cross
+            } else if matchKeyword("JOIN") {
+                joinType = .inner
+            } else {
+                break
+            }
+
+            let fromItem = try parseFromItem()
+            let onExpression: (any Expression)?
+            if joinType != .cross && matchKeyword("ON") {
+                onExpression = try parseExpression()
+            } else {
+                onExpression = nil
+            }
+
+            joins.append(Join(type: joinType, fromItem: fromItem, onExpression: onExpression))
+        }
+
+        return joins
+    }
+
+    private mutating func parseTrailingSelectStatement(until keywordSequences: [[String]]) throws -> any Statement {
+        let sql = try collectTrailingSqlUntilTopLevelKeywords(keywordSequences)
+        return try SqlParser().parseStatement(sql, options: options)
+    }
+
+    private mutating func collectTrailingSqlUntilTopLevelKeywords(_ keywordSequences: [[String]]) throws -> String {
+        let start = index
+        var depth = 0
+        var current = index
+
+        while current < tokens.count {
+            let token = tokens[current]
+            if token.kind == .symbol, token.text == "(" {
+                depth += 1
+            } else if token.kind == .symbol, token.text == ")" {
+                depth -= 1
+            }
+
+            if depth == 0 {
+                for sequence in keywordSequences where matchesKeywordSequence(sequence, at: current) {
+                    let sql = tokens[start..<current].map(\.text).joined(separator: " ")
+                    index = current
+                    return sql
+                }
+            }
+
+            current += 1
+        }
+
+        index = tokens.count
+        return tokens[start..<tokens.count].map(\.text).joined(separator: " ")
+    }
+
+    private func matchesKeywordSequence(_ sequence: [String], at start: Int) -> Bool {
+        guard start + sequence.count <= tokens.count else {
+            return false
+        }
+
+        for (offset, keyword) in sequence.enumerated() {
+            let token = tokens[start + offset]
+            guard token.kind == .identifier, token.uppercased == keyword else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func checkKeywordSequence(_ sequence: [String]) -> Bool {
+        matchesKeywordSequence(sequence, at: index)
     }
 
     private mutating func parseIdentifierListUntilRightParen() throws -> [String] {
@@ -130,29 +397,60 @@ struct DmlParser {
     }
 
     private mutating func parseAndExpression() throws -> any Expression {
-        var expression = try parseEqualityExpression()
+        var expression = try parseComparisonExpression()
         while matchKeyword("AND") {
-            let rhs = try parseEqualityExpression()
+            let rhs = try parseComparisonExpression()
             expression = BinaryExpression(left: expression, operator: .and, right: rhs)
         }
         return expression
     }
 
-    private mutating func parseEqualityExpression() throws -> any Expression {
+    private mutating func parseComparisonExpression() throws -> any Expression {
         var expression = try parseAdditiveExpression()
 
         while true {
             if match(symbol: "=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .equals, right: rhs)
+            } else if match(symbol: "<") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .lessThan, right: rhs)
+            } else if match(symbol: "<=") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .lessThanOrEquals, right: rhs)
+            } else if match(symbol: ">") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .greaterThan, right: rhs)
+            } else if match(symbol: ">=") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .greaterThanOrEquals, right: rhs)
             } else if options.dialectFeatures.contains(.postgres)
                 && options.experimentalFeatures.contains(.postgresIlike)
                 && matchKeyword("ILIKE") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .ilike, right: rhs)
+            } else if matchKeyword("LIKE") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .like, right: rhs)
+            } else if matchKeyword("NOT") && matchKeyword("LIKE") {
+                let rhs = try parseAdditiveExpression()
+                let likeExpression = BinaryExpression(left: expression, operator: .like, right: rhs)
+                expression = UnaryExpression(operator: .not, expression: likeExpression)
             } else if match(symbol: "<>") || match(symbol: "!=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .notEquals, right: rhs)
+            } else if matchKeyword("IS") {
+                let isNegated = matchKeyword("NOT")
+                try consumeKeyword("NULL")
+                expression = IsNullExpression(expression: expression, isNegated: isNegated)
+            } else if matchKeyword("NOT") && matchKeyword("IN") {
+                expression = try parseInListExpression(expression: expression, isNegated: true)
+            } else if matchKeyword("IN") {
+                expression = try parseInListExpression(expression: expression)
+            } else if matchKeyword("NOT") && matchKeyword("BETWEEN") {
+                expression = try parseBetweenExpression(expression: expression, isNegated: true)
+            } else if matchKeyword("BETWEEN") {
+                expression = try parseBetweenExpression(expression: expression)
             } else {
                 break
             }
@@ -207,12 +505,34 @@ struct DmlParser {
         if matchKeyword("NOT") {
             return UnaryExpression(operator: .not, expression: try parseUnaryExpression())
         }
+        if matchKeyword("EXISTS") {
+            try consumeSymbol("(")
+            let nestedSql = try collectBalancedParenthesisText()
+            let select = try SqlParser().parseStatement(nestedSql, options: options)
+            return ExistsExpression(statement: select)
+        }
 
-        return try parsePrimaryExpression()
+        return try parsePostfixExpression()
+    }
+
+    private mutating func parsePostfixExpression() throws -> any Expression {
+        var expression = try parsePrimaryExpression()
+
+        while match(symbol: "::") {
+            let typeName = try parseTypeName()
+            expression = CastExpression(expression: expression, typeName: typeName, style: .postgres)
+        }
+
+        return expression
     }
 
     private mutating func parsePrimaryExpression() throws -> any Expression {
         if match(symbol: "(") {
+            if checkKeyword("SELECT") || checkKeyword("WITH") {
+                let nestedSql = try collectBalancedParenthesisText()
+                let select = try SqlParser().parseStatement(nestedSql, options: options)
+                return SubqueryExpression(statement: select)
+            }
             let expression = try parseExpression()
             try consumeSymbol(")")
             return expression
@@ -224,6 +544,22 @@ struct DmlParser {
 
         if let stringValue = consumeStringIfPresent() {
             return StringLiteralExpression(value: stringValue)
+        }
+
+        if matchKeyword("NULL") {
+            return NullLiteralExpression()
+        }
+
+        if let placeholder = consumePlaceholderIfPresent() {
+            return PlaceholderExpression(token: placeholder)
+        }
+
+        if matchKeyword("CASE") {
+            return try parseCaseExpression()
+        }
+
+        if matchKeyword("CAST") {
+            return try parseCastExpression()
         }
 
         let identifier = try consumeIdentifier()
@@ -243,6 +579,85 @@ struct DmlParser {
         }
 
         return IdentifierExpression(name: identifier)
+    }
+
+    private mutating func parseInListExpression(expression: any Expression, isNegated: Bool = false) throws -> any Expression {
+        try consumeSymbol("(")
+        var values: [any Expression] = []
+        if match(symbol: ")") == false {
+            while true {
+                values.append(try parseExpression())
+                if match(symbol: ",") {
+                    continue
+                }
+                try consumeSymbol(")")
+                break
+            }
+        }
+        return InListExpression(expression: expression, values: values, isNegated: isNegated)
+    }
+
+    private mutating func parseBetweenExpression(expression: any Expression, isNegated: Bool = false) throws -> any Expression {
+        let lowerBound = try parseAdditiveExpression()
+        try consumeKeyword("AND")
+        let upperBound = try parseAdditiveExpression()
+        return BetweenExpression(expression: expression, lowerBound: lowerBound, upperBound: upperBound, isNegated: isNegated)
+    }
+
+    private mutating func parseCaseExpression() throws -> any Expression {
+        let baseExpression: (any Expression)?
+        if checkKeyword("WHEN") {
+            baseExpression = nil
+        } else {
+            baseExpression = try parseExpression()
+        }
+
+        var whenClauses: [CaseWhenClause] = []
+        while matchKeyword("WHEN") {
+            let condition = try parseExpression()
+            try consumeKeyword("THEN")
+            let result = try parseExpression()
+            whenClauses.append(CaseWhenClause(condition: condition, result: result))
+        }
+
+        let elseExpression: (any Expression)?
+        if matchKeyword("ELSE") {
+            elseExpression = try parseExpression()
+        } else {
+            elseExpression = nil
+        }
+
+        try consumeKeyword("END")
+        return CaseExpression(baseExpression: baseExpression, whenClauses: whenClauses, elseExpression: elseExpression)
+    }
+
+    private mutating func parseCastExpression() throws -> any Expression {
+        try consumeSymbol("(")
+        let expression = try parseExpression()
+        try consumeKeyword("AS")
+        let typeName = try parseTypeName()
+        try consumeSymbol(")")
+        return CastExpression(expression: expression, typeName: typeName)
+    }
+
+    private mutating func parseTypeName() throws -> String {
+        var typeName = try consumeIdentifier()
+
+        if match(symbol: "(") {
+            var components: [String] = []
+            while true {
+                guard let token = advance() else {
+                    throw DmlParseFailure.expected("type modifier")
+                }
+                if token.kind == .symbol, token.text == ")" {
+                    break
+                }
+                components.append(token.text)
+            }
+            typeName += "(\(components.joined(separator: " ")))"
+        }
+
+        return typeName
     }
 
     private mutating func ensureAtEnd() throws {
@@ -297,6 +712,34 @@ struct DmlParser {
         return token.text
     }
 
+    private mutating func consumePlaceholderIfPresent() -> String? {
+        guard let token = peek(), token.kind == .placeholder else {
+            return nil
+        }
+        _ = advance()
+        return token.text
+    }
+
+    private mutating func collectBalancedParenthesisText() throws -> String {
+        var depth = 1
+        var collected: [String] = []
+
+        while let token = advance() {
+            if token.kind == .symbol, token.text == "(" {
+                depth += 1
+            } else if token.kind == .symbol, token.text == ")" {
+                depth -= 1
+                if depth == 0 {
+                    return collected.joined(separator: " ")
+                }
+            }
+
+            collected.append(token.text)
+        }
+
+        throw DmlParseFailure.expected(")")
+    }
+
     private func checkKeyword(_ keyword: String) -> Bool {
         guard let token = peek() else {
             return false
@@ -348,6 +791,7 @@ private struct Token {
         case identifier
         case number
         case string
+        case placeholder
         case symbol
     }
 
@@ -415,6 +859,19 @@ private struct Tokenizer {
                 continue
             }
 
+            if character == "?" {
+                tokens.append(Token(text: String(character), kind: .placeholder))
+                index = sql.index(after: index)
+                continue
+            }
+
+            if character == "$" {
+                let (placeholder, nextIndex) = consumePlaceholder(from: index)
+                tokens.append(Token(text: placeholder, kind: .placeholder))
+                index = nextIndex
+                continue
+            }
+
             if character.isLetter || character == "_" {
                 let (identifier, nextIndex) = consumeIdentifier(from: index)
                 tokens.append(Token(text: identifier, kind: .identifier))
@@ -425,14 +882,14 @@ private struct Tokenizer {
             let nextIndex = sql.index(after: index)
             if nextIndex < sql.endIndex {
                 let pair = String([character, sql[nextIndex]])
-                if ["<>", "!=", ">=", "<=", "||"].contains(pair) {
+                if ["<>", "!=", ">=", "<=", "||", "::"].contains(pair) {
                     tokens.append(Token(text: pair, kind: .symbol))
                     index = sql.index(after: nextIndex)
                     continue
                 }
             }
 
-            if [",", "*", "(", ")", "=", "+", "-", "/", "."].contains(character) {
+            if [",", "*", "(", ")", "=", "+", "-", "/", ".", "<", ">"].contains(character) {
                 tokens.append(Token(text: String(character), kind: .symbol))
                 index = nextIndex
                 continue
@@ -477,6 +934,14 @@ private struct Tokenizer {
             break
         }
 
+        return (String(sql[start..<current]), current)
+    }
+
+    private func consumePlaceholder(from start: String.Index) -> (String, String.Index) {
+        var current = sql.index(after: start)
+        while current < sql.endIndex, sql[current].isNumber {
+            current = sql.index(after: current)
+        }
         return (String(sql[start..<current]), current)
     }
 

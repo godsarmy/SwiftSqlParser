@@ -88,7 +88,7 @@ public struct SqlParser: Sendable {
             }
         }
 
-        if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("(") {
+        if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("VALUES ") || uppercased.hasPrefix("(") {
             do {
                 var selectParser = try SelectCoreParser(sql: cleaned, options: options)
                 return try selectParser.parseStatement()
@@ -229,7 +229,6 @@ public struct SqlParser: Sendable {
         let uppercase = sql.uppercased()
         let unsupportedRules: [(token: String, gap: String)] = [
             ("MERGE", "merge_statement"),
-            ("QUALIFY", "qualify_clause"),
             ("PIVOT", "pivot_clause"),
             ("UNPIVOT", "unpivot_clause"),
             ("MATCH_RECOGNIZE", "match_recognize")

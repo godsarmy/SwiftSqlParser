@@ -56,7 +56,6 @@ func corpusUnsupportedStatementsMapToTrackedGaps() throws {
 
     let trackedGaps: Set<TrackedParityGap> = [
         .init(id: "merge_statement", token: "MERGE"),
-        .init(id: "qualify_clause", token: "QUALIFY"),
         .init(id: "pivot_clause", token: "PIVOT"),
         .init(id: "unpivot_clause", token: "UNPIVOT"),
         .init(id: "match_recognize", token: "MATCH_RECOGNIZE")
@@ -64,8 +63,12 @@ func corpusUnsupportedStatementsMapToTrackedGaps() throws {
 
     for statement in statements {
         do {
-            _ = try parseStatement(statement)
-            Issue.record("Expected unsupported syntax: \(statement)")
+            let parsed = try parseStatement(statement)
+            if statement.uppercased().contains("QUALIFY") {
+                #expect(parsed is PlainSelect)
+            } else {
+                Issue.record("Expected unsupported syntax: \(statement)")
+            }
         } catch let error as SqlParseError {
             #expect(error.diagnostic.code == .unsupportedSyntax)
             let normalized = error.normalizedMessage.replacingOccurrences(of: "unsupported_syntax:", with: "")

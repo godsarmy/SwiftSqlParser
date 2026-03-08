@@ -15,7 +15,7 @@ func selectParserBuildsWhereExpression() throws {
 
 @Test
 func selectParserBuildsJoinNodes() throws {
-    let sql = "SELECT u.id FROM users u INNER JOIN roles r ON u.id = r.user_id"
+    let sql = "SELECT u.id FROM users u NATURAL LEFT JOIN roles r USING (role_id)"
     let parsed = try parseStatement(sql)
     guard let select = parsed as? PlainSelect else {
         Issue.record("Expected PlainSelect")
@@ -23,7 +23,9 @@ func selectParserBuildsJoinNodes() throws {
     }
 
     #expect(select.joins.count == 1)
-    #expect(select.joins.first?.type == .inner)
+    #expect(select.joins.first?.type == .left)
+    #expect(select.joins.first?.isNatural == true)
+    #expect(select.joins.first?.usingColumns == ["role_id"])
 }
 
 @Test
@@ -57,4 +59,62 @@ func unionAllParsesIntoSetOperationSelect() throws {
 
     #expect(setOperation.operation == .union)
     #expect(setOperation.isAll)
+}
+
+@Test
+func selectParserBuildsDistinctGroupingOrderingAndPagination() throws {
+    let sql = "SELECT DISTINCT department_id, count(id) OVER (PARTITION BY department_id ORDER BY created_at DESC) FROM users WHERE active = 1 GROUP BY department_id HAVING count(id) = 2 QUALIFY count(id) OVER (PARTITION BY department_id) > 1 ORDER BY department_id DESC, count(id) ASC LIMIT 10 OFFSET 20"
+    let parsed = try parseStatement(sql)
+
+    guard let select = parsed as? PlainSelect else {
+        Issue.record("Expected PlainSelect")
+        return
+    }
+
+    #expect(select.isDistinct)
+    #expect(select.groupByExpressions.count == 1)
+    #expect(select.havingExpression != nil)
+    #expect(select.qualifyExpression != nil)
+    #expect(select.orderBy.count == 2)
+    #expect(select.orderBy.first?.direction == .descending)
+    #expect(select.orderBy.last?.direction == .ascending)
+    #expect(select.limit == 10)
+    #expect(select.offset == 20)
+}
+
+@Test
+func valuesAndApplyQueriesParse() throws {
+    let valuesParsed = try parseStatement("VALUES (1, 'a'), (2, 'b')")
+    guard let values = valuesParsed as? ValuesSelect else {
+        Issue.record("Expected ValuesSelect")
+        return
+    }
+    #expect(values.rows.count == 2)
+
+    let applyParsed = try parseStatement("SELECT u.id FROM users u CROSS APPLY LATERAL (SELECT id FROM roles) r")
+    guard let apply = applyParsed as? PlainSelect else {
+        Issue.record("Expected PlainSelect")
+        return
+    }
+    #expect(apply.joins.first?.type == .crossApply)
+}
+
+@Test
+func selectParserBuildsAdvancedExpressionNodes() throws {
+    let sql = "SELECT CASE WHEN age >= 18 THEN 'adult' ELSE 'minor' END AS bucket, CAST(score AS INTEGER) AS cast_score, name::TEXT AS text_name FROM users WHERE deleted_at IS NULL AND id IN (1, 2, 3) AND score BETWEEN 10 AND 20 AND email LIKE ? AND EXISTS (SELECT id FROM roles WHERE roles.user_id = users.id)"
+    let parsed = try parseStatement(sql)
+
+    guard let select = parsed as? PlainSelect else {
+        Issue.record("Expected PlainSelect")
+        return
+    }
+
+    #expect(select.selectItems.count == 3)
+    #expect(select.whereExpression != nil)
+
+    let expressionItems = select.selectItems.compactMap { $0 as? ExpressionSelectItem }
+    #expect(expressionItems.count == 3)
+    #expect(expressionItems[0].expression is CaseExpression)
+    #expect(expressionItems[1].expression is CastExpression)
+    #expect(expressionItems[2].expression is CastExpression)
 }

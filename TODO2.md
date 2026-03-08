@@ -186,49 +186,49 @@ This file tracks major feature gaps between `SwiftSqlParser` and `JSqlParser` an
 
 ### Milestone 1: Core query parity
 
-- [ ] Extend AST for `DISTINCT`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`, `OFFSET`
-- [ ] Parse those clauses in `SelectCoreParser`
-- [ ] Deparse the new query clauses
-- [ ] Add visitor coverage for new query nodes
-- [ ] Add parse + deparse + regression tests for each clause
+- [x] Extend AST for `DISTINCT`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`, `OFFSET`
+- [x] Parse those clauses in `SelectCoreParser`
+- [x] Deparse the new query clauses
+- [x] Add visitor coverage for new query nodes
+- [x] Add parse + deparse + regression tests for each clause
 
 ### Milestone 2: Expression parity
 
-- [ ] Add AST nodes/operators for comparison operators `<`, `>`, `<=`, `>=`
-- [ ] Add support for `LIKE`, `IN`, `BETWEEN`, `IS NULL`, `EXISTS`
-- [ ] Add `CASE` expressions
-- [ ] Add `CAST` and Postgres `::`
-- [ ] Add placeholders / parameter markers
-- [ ] Add parse + deparse + regression tests for expression precedence and nesting
+- [x] Add AST nodes/operators for comparison operators `<`, `>`, `<=`, `>=`
+- [x] Add support for `LIKE`, `IN`, `BETWEEN`, `IS NULL`, `EXISTS`
+- [x] Add `CASE` expressions
+- [x] Add `CAST` and Postgres `::`
+- [x] Add placeholders / parameter markers
+- [x] Add parse + deparse + regression tests for expression precedence and nesting
 
 ### Milestone 3: Practical DML parity
 
-- [ ] Support `INSERT ... SELECT`
-- [ ] Support `DEFAULT VALUES`
-- [ ] Support `RETURNING`
-- [ ] Support Postgres `ON CONFLICT`
-- [ ] Support MySQL `ON DUPLICATE KEY UPDATE`
-- [ ] Support `UPDATE ... FROM`
-- [ ] Support `DELETE ... USING`
-- [ ] Add parse + deparse + regression tests for each DML variant
+- [x] Support `INSERT ... SELECT`
+- [x] Support `DEFAULT VALUES`
+- [x] Support `RETURNING`
+- [x] Support Postgres `ON CONFLICT`
+- [x] Support MySQL `ON DUPLICATE KEY UPDATE`
+- [x] Support `UPDATE ... FROM`
+- [x] Support `DELETE ... USING`
+- [x] Add parse + deparse + regression tests for each DML variant
 
 ### Milestone 4: Practical DDL parity
 
-- [ ] Extend column definitions with defaults and constraints
-- [ ] Add primary key / foreign key / check constraint modeling
-- [ ] Support `CREATE INDEX`
-- [ ] Support `ALTER TABLE` rename and constraint operations
-- [ ] Support `CREATE VIEW`
-- [ ] Add parse + deparse + regression tests for each DDL addition
+- [x] Extend column definitions with defaults and constraints
+- [x] Add primary key / foreign key / check constraint modeling
+- [x] Support `CREATE INDEX`
+- [x] Support `ALTER TABLE` rename and constraint operations
+- [x] Support `CREATE VIEW`
+- [x] Add parse + deparse + regression tests for each DDL addition
 
 ### Milestone 5: Advanced query features
 
-- [ ] Add window / analytic function support
-- [ ] Add `VALUES` query support
-- [ ] Add `LATERAL` / `APPLY`
-- [ ] Add `USING` and `NATURAL JOIN`
-- [ ] Add `QUALIFY`
-- [ ] Add parse + deparse + regression tests for advanced query forms
+- [x] Add window / analytic function support
+- [x] Add `VALUES` query support
+- [x] Add `LATERAL` / `APPLY`
+- [x] Add `USING` and `NATURAL JOIN`
+- [x] Add `QUALIFY`
+- [x] Add parse + deparse + regression tests for advanced query forms
 
 ### Milestone 6: Vendor-heavy features
 

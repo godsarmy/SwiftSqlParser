@@ -6,14 +6,17 @@ This matrix tracks currently implemented parser support in SwiftSqlParser.
 
 | Area | Status | Notes |
 |---|---|---|
-| `SELECT` core | Supported | projection, `FROM`, `WHERE`, joins |
+| `SELECT` core | Supported | projection, `DISTINCT`, `FROM`, `WHERE`, joins, `GROUP BY`, `HAVING`, `QUALIFY`, `ORDER BY`, `LIMIT`, `OFFSET` |
 | `WITH` / CTE | Supported | `WITH ... AS (...)` with query body |
+| `VALUES` query | Supported | top-level `VALUES (...)` and nested values subqueries |
 | Set operations | Supported | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT` |
-| `INSERT` | Supported | `INSERT INTO ... [(...)] VALUES (...)` |
-| `UPDATE` | Supported | `UPDATE ... SET ... [WHERE ...]` |
-| `DELETE` | Supported | `DELETE FROM ... [WHERE ...]` |
-| `CREATE TABLE` | Supported | simple column list (`name type`) |
-| `ALTER TABLE` | Supported | `ADD [COLUMN]`, `DROP [COLUMN]` |
+| `INSERT` | Supported | `VALUES`, `DEFAULT VALUES`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`, `ON DUPLICATE KEY UPDATE` |
+| `UPDATE` | Supported | `UPDATE ... SET ... [FROM ...] [WHERE ...] [RETURNING ...]` |
+| `DELETE` | Supported | `DELETE FROM ... [USING ...] [WHERE ...] [RETURNING ...]` |
+| `CREATE TABLE` | Supported | columns with defaults/constraints plus table `PRIMARY KEY` / `FOREIGN KEY` / `CHECK` constraints |
+| `CREATE INDEX` | Supported | `CREATE [UNIQUE] INDEX ... ON ... (...)` |
+| `CREATE VIEW` | Supported | `CREATE VIEW ... AS <select>` |
+| `ALTER TABLE` | Supported | `ADD/DROP [COLUMN]`, `RENAME [COLUMN]`, `RENAME TO`, `ADD/DROP CONSTRAINT` |
 | `DROP TABLE` | Supported | single table |
 | `TRUNCATE [TABLE]` | Supported | single table |
 
@@ -27,6 +30,29 @@ Dialect behavior is option-driven and may require both a dialect flag and an exp
 | MySQL/BigQuery/Snowflake backtick identifiers (`` `name` ``) | `.mysql`/`.bigQuery`/`.snowflake` | `.quotedIdentifiers` | Supported |
 | ANSI quoted identifiers (`"name"`) | any | `.quotedIdentifiers` | Supported |
 | Postgres `ILIKE` | `.postgres` | `.postgresIlike` | Supported |
+
+## Expression Features
+
+| Feature | Status | Notes |
+|---|---|---|
+| Comparison operators | Supported | `=`, `!=`, `<>`, `<`, `<=`, `>`, `>=` |
+| Null predicates | Supported | `IS NULL`, `IS NOT NULL` |
+| Membership/range predicates | Supported | `IN`, `NOT IN`, `BETWEEN`, `NOT BETWEEN` |
+| Pattern predicates | Supported | `LIKE`, Postgres `ILIKE` |
+| Conditional expressions | Supported | searched/simple `CASE` |
+| Casts | Supported | `CAST(... AS type)`, Postgres `::` |
+| Placeholders | Supported | `?`, `$1`-style positional placeholders |
+| Existence predicates | Supported | `EXISTS (subquery)` |
+| Window functions | Supported | `... OVER (PARTITION BY ... ORDER BY ...)` and named windows |
+
+## Join / From Features
+
+| Feature | Status | Notes |
+|---|---|---|
+| Lateral subqueries | Supported | `LATERAL (...) alias` |
+| Natural joins | Supported | `NATURAL JOIN`, `NATURAL LEFT/RIGHT/FULL JOIN` |
+| USING joins | Supported | `JOIN ... USING (...)` |
+| APPLY joins | Supported | `CROSS APPLY`, `OUTER APPLY` |
 
 ## Known Non-Goals / Current Gaps
 
