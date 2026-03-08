@@ -9,8 +9,21 @@ public struct RawStatement: Statement, Equatable, Sendable {
 }
 
 public enum SqlParseError: Error, Equatable, Sendable {
-    case emptyInput
-    case emptyStatement(index: Int)
+    case emptyInput(SqlDiagnostic)
+    case emptyStatement(SqlDiagnostic)
+
+    public var diagnostic: SqlDiagnostic {
+        switch self {
+        case let .emptyInput(diagnostic):
+            diagnostic
+        case let .emptyStatement(diagnostic):
+            diagnostic
+        }
+    }
+
+    public var normalizedMessage: String {
+        diagnostic.normalizedMessage
+    }
 }
 
 public struct SqlParser: Sendable {
@@ -23,7 +36,14 @@ public struct SqlParser: Sendable {
     public func parseStatement(_ sql: String, options: ParserOptions = .init()) throws -> any Statement {
         let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleaned.isEmpty == false else {
-            throw SqlParseError.emptyInput
+            throw SqlParseError.emptyInput(
+                SqlDiagnostic(
+                    code: .emptyInput,
+                    message: "Input SQL is empty.",
+                    normalizedMessage: "empty_input:input sql is empty",
+                    location: .init(line: 1, column: 1, offset: 0)
+                )
+            )
         }
 
         _ = options
@@ -33,7 +53,14 @@ public struct SqlParser: Sendable {
     public func parseStatements(_ sql: String, options: ParserOptions = .init()) throws -> [any Statement] {
         let cleaned = sql.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleaned.isEmpty == false else {
-            throw SqlParseError.emptyInput
+            throw SqlParseError.emptyInput(
+                SqlDiagnostic(
+                    code: .emptyInput,
+                    message: "Input SQL is empty.",
+                    normalizedMessage: "empty_input:input sql is empty",
+                    location: .init(line: 1, column: 1, offset: 0)
+                )
+            )
         }
 
         let statements: [String] = options.scriptSeparators.reduce([cleaned]) { partial, separator in
@@ -44,10 +71,70 @@ public struct SqlParser: Sendable {
         let containsEmptyChunk = statements.contains(where: \String.isEmpty)
         if containsEmptyChunk {
             let firstEmpty = statements.firstIndex(of: "") ?? 0
-            throw SqlParseError.emptyStatement(index: firstEmpty)
+            throw SqlParseError.emptyStatement(
+                SqlDiagnostic(
+                    code: .emptyStatement,
+                    message: "Statement at index \(firstEmpty) is empty.",
+                    normalizedMessage: "empty_statement:statement chunk is empty",
+                    location: .init(line: 1, column: firstEmpty + 1, offset: firstEmpty)
+                )
+            )
         }
 
         return statements.map(RawStatement.init(sql:))
+    }
+
+    public func parseScript(_ sql: String, options: ParserOptions = .init()) -> ScriptParseResult {
+        let separator = options.scriptSeparators.first ?? ";"
+        if separator.isEmpty {
+            return ScriptParseResult(statements: [], diagnostics: [
+                SqlDiagnostic(
+                    code: .emptyStatement,
+                    message: "Script separator cannot be empty.",
+                    normalizedMessage: "empty_statement:script separator cannot be empty",
+                    location: .init(line: 1, column: 1, offset: 0)
+                )
+            ])
+        }
+
+        let chunks = sql.components(separatedBy: separator)
+        var line = 1
+        var column = 1
+        var offset = 0
+        var statements: [any Statement] = []
+        var diagnostics: [SqlDiagnostic] = []
+
+        for chunk in chunks {
+            let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                diagnostics.append(
+                    SqlDiagnostic(
+                        code: .emptyStatement,
+                        message: "Script statement is empty.",
+                        normalizedMessage: "empty_statement:script statement is empty",
+                        location: .init(line: line, column: column, offset: offset),
+                        token: separator
+                    )
+                )
+            } else {
+                statements.append(RawStatement(sql: trimmed))
+            }
+
+            for character in chunk {
+                offset += 1
+                if character == "\n" {
+                    line += 1
+                    column = 1
+                } else {
+                    column += 1
+                }
+            }
+
+            offset += separator.count
+            column += separator.count
+        }
+
+        return ScriptParseResult(statements: statements, diagnostics: diagnostics)
     }
 }
 
@@ -65,4 +152,12 @@ public func parseStatements(
     strategy: GrammarStrategy = .init()
 ) throws -> [any Statement] {
     try SqlParser(strategy: strategy).parseStatements(sql, options: options)
+}
+
+public func parseScript(
+    _ sql: String,
+    options: ParserOptions = .init(),
+    strategy: GrammarStrategy = .init()
+) -> ScriptParseResult {
+    SqlParser(strategy: strategy).parseScript(sql, options: options)
 }

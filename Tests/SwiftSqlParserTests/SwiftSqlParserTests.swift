@@ -21,7 +21,7 @@ func parseStatementsRespectsSeparators() throws {
 
 @Test
 func parseStatementFailsOnEmptyInput() {
-    #expect(throws: SqlParseError.emptyInput) {
-        try parseStatement("   ")
+    #expect(throws: SqlParseError.self) {
+        let _ = try parseStatement("   ")
     }
 }
