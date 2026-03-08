@@ -2,14 +2,17 @@ import Foundation
 
 struct SelectCoreParser {
     private let tokens: [Token]
+    private let options: ParserOptions
     private var index: Int = 0
 
-    init(sql: String) throws {
-        self.tokens = try Tokenizer(sql: sql).tokenize()
+    init(sql: String, options: ParserOptions) throws {
+        self.options = options
+        self.tokens = try Tokenizer(sql: sql, options: options).tokenize()
     }
 
-    private init(tokens: [Token]) {
+    private init(tokens: [Token], options: ParserOptions) {
         self.tokens = tokens
+        self.options = options
     }
 
     mutating func parseStatement() throws -> any Statement {
@@ -32,7 +35,7 @@ struct SelectCoreParser {
             try consumeKeyword("AS")
             try consumeSymbol("(")
             let cteTokens = try collectBalancedParenthesisContent()
-            var nested = SelectCoreParser(tokens: cteTokens)
+            var nested = SelectCoreParser(tokens: cteTokens, options: options)
             let cteStatement = try nested.parseStatement()
             expressions.append(CommonTableExpression(name: name, statement: cteStatement))
 
@@ -73,7 +76,7 @@ struct SelectCoreParser {
     private mutating func parsePrimarySelectStatement() throws -> any Statement {
         if match(symbol: "(") {
             let nestedTokens = try collectBalancedParenthesisContent()
-            var nested = SelectCoreParser(tokens: nestedTokens)
+            var nested = SelectCoreParser(tokens: nestedTokens, options: options)
             return try nested.parseStatement()
         }
 
@@ -146,7 +149,7 @@ struct SelectCoreParser {
     private mutating func parseFromItem() throws -> any FromItem {
         if match(symbol: "(") {
             let nestedTokens = try collectBalancedParenthesisContent()
-            var nested = SelectCoreParser(tokens: nestedTokens)
+            var nested = SelectCoreParser(tokens: nestedTokens, options: options)
             let nestedStatement = try nested.parseStatement()
             let alias = try parseAliasIfPresent()
             return SubqueryFromItem(statement: nestedStatement, alias: alias)
@@ -234,6 +237,9 @@ struct SelectCoreParser {
             if match(symbol: "=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .equals, right: rhs)
+            } else if options.dialectFeatures.contains(.postgres), matchKeyword("ILIKE") {
+                let rhs = try parseAdditiveExpression()
+                expression = BinaryExpression(left: expression, operator: .ilike, right: rhs)
             } else if match(symbol: "<>") || match(symbol: "!=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .notEquals, right: rhs)
@@ -299,7 +305,7 @@ struct SelectCoreParser {
         if match(symbol: "(") {
             if checkKeyword("SELECT") || checkKeyword("WITH") {
                 let nestedTokens = try collectBalancedParenthesisContent()
-                var nested = SelectCoreParser(tokens: nestedTokens)
+                var nested = SelectCoreParser(tokens: nestedTokens, options: options)
                 let select = try nested.parseStatement()
                 return SubqueryExpression(statement: select)
             }
@@ -471,9 +477,11 @@ private struct Token {
 
 private struct Tokenizer {
     private let sql: String
+    private let options: ParserOptions
 
-    init(sql: String) {
+    init(sql: String, options: ParserOptions) {
         self.sql = sql
+        self.options = options
     }
 
     func tokenize() throws -> [Token] {
@@ -491,6 +499,27 @@ private struct Tokenizer {
             if character == "'" {
                 let (value, nextIndex) = try consumeString(from: index)
                 tokens.append(Token(text: value, kind: .string))
+                index = nextIndex
+                continue
+            }
+
+            if character == "\"" {
+                let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "\"")
+                tokens.append(Token(text: identifier, kind: .identifier))
+                index = nextIndex
+                continue
+            }
+
+            if character == "[", options.identifierQuoting == .squareBrackets || options.dialectFeatures.contains(.sqlServer) {
+                let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
+                tokens.append(Token(text: identifier, kind: .identifier))
+                index = nextIndex
+                continue
+            }
+
+            if character == "`", options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.bigQuery) || options.dialectFeatures.contains(.snowflake) {
+                let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
+                tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
                 continue
             }
@@ -588,5 +617,37 @@ private struct Tokenizer {
         }
 
         throw SelectParseFailure.expected("closing quote")
+    }
+
+    private func consumeQuotedIdentifier(from start: String.Index, quote: Character) throws -> (String, String.Index) {
+        var current = sql.index(after: start)
+        var value = ""
+
+        while current < sql.endIndex {
+            let character = sql[current]
+            if character == quote {
+                return (value, sql.index(after: current))
+            }
+            value.append(character)
+            current = sql.index(after: current)
+        }
+
+        throw SelectParseFailure.expected("closing identifier quote")
+    }
+
+    private func consumeBracketIdentifier(from start: String.Index) throws -> (String, String.Index) {
+        var current = sql.index(after: start)
+        var value = ""
+
+        while current < sql.endIndex {
+            let character = sql[current]
+            if character == "]" {
+                return (value, sql.index(after: current))
+            }
+            value.append(character)
+            current = sql.index(after: current)
+        }
+
+        throw SelectParseFailure.expected("closing bracket identifier")
     }
 }

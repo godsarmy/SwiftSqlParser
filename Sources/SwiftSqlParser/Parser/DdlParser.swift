@@ -2,10 +2,12 @@ import Foundation
 
 struct DdlParser {
     private let tokens: [Token]
+    private let options: ParserOptions
     private var index: Int = 0
 
-    init(sql: String) throws {
-        self.tokens = try Tokenizer(sql: sql).tokenize()
+    init(sql: String, options: ParserOptions) throws {
+        self.options = options
+        self.tokens = try Tokenizer(sql: sql, options: options).tokenize()
     }
 
     mutating func parseStatement() throws -> any Statement {
@@ -188,9 +190,11 @@ private struct Token {
 
 private struct Tokenizer {
     private let sql: String
+    private let options: ParserOptions
 
-    init(sql: String) {
+    init(sql: String, options: ParserOptions) {
         self.sql = sql
+        self.options = options
     }
 
     func tokenize() throws -> [Token] {
@@ -207,6 +211,27 @@ private struct Tokenizer {
 
             if character == "'" {
                 let (_, nextIndex) = try consumeString(from: index)
+                index = nextIndex
+                continue
+            }
+
+            if character == "\"" {
+                let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "\"")
+                tokens.append(Token(text: identifier, kind: .identifier))
+                index = nextIndex
+                continue
+            }
+
+            if character == "[", options.identifierQuoting == .squareBrackets || options.dialectFeatures.contains(.sqlServer) {
+                let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
+                tokens.append(Token(text: identifier, kind: .identifier))
+                index = nextIndex
+                continue
+            }
+
+            if character == "`", options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.bigQuery) || options.dialectFeatures.contains(.snowflake) {
+                let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
+                tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
                 continue
             }
@@ -274,5 +299,37 @@ private struct Tokenizer {
         }
 
         throw DdlParseFailure.expected("closing quote")
+    }
+
+    private func consumeQuotedIdentifier(from start: String.Index, quote: Character) throws -> (String, String.Index) {
+        var current = sql.index(after: start)
+        var value = ""
+
+        while current < sql.endIndex {
+            let character = sql[current]
+            if character == quote {
+                return (value, sql.index(after: current))
+            }
+            value.append(character)
+            current = sql.index(after: current)
+        }
+
+        throw DdlParseFailure.expected("closing identifier quote")
+    }
+
+    private func consumeBracketIdentifier(from start: String.Index) throws -> (String, String.Index) {
+        var current = sql.index(after: start)
+        var value = ""
+
+        while current < sql.endIndex {
+            let character = sql[current]
+            if character == "]" {
+                return (value, sql.index(after: current))
+            }
+            value.append(character)
+            current = sql.index(after: current)
+        }
+
+        throw DdlParseFailure.expected("closing bracket identifier")
     }
 }

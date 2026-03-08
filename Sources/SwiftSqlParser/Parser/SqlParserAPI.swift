@@ -56,7 +56,7 @@ public struct SqlParser: Sendable {
 
         if uppercased.hasPrefix("INSERT ") || uppercased.hasPrefix("UPDATE ") || uppercased.hasPrefix("DELETE ") {
             do {
-                var dmlParser = try DmlParser(sql: cleaned)
+                var dmlParser = try DmlParser(sql: cleaned, options: options)
                 return try dmlParser.parseStatement()
             } catch {
                 throw SqlParseError.unsupportedSyntax(
@@ -73,7 +73,7 @@ public struct SqlParser: Sendable {
 
         if uppercased.hasPrefix("CREATE ") || uppercased.hasPrefix("ALTER ") || uppercased.hasPrefix("DROP ") || uppercased.hasPrefix("TRUNCATE ") {
             do {
-                var ddlParser = try DdlParser(sql: cleaned)
+                var ddlParser = try DdlParser(sql: cleaned, options: options)
                 return try ddlParser.parseStatement()
             } catch {
                 throw SqlParseError.unsupportedSyntax(
@@ -90,7 +90,7 @@ public struct SqlParser: Sendable {
 
         if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ") || uppercased.hasPrefix("(") {
             do {
-                var selectParser = try SelectCoreParser(sql: cleaned)
+                var selectParser = try SelectCoreParser(sql: cleaned, options: options)
                 return try selectParser.parseStatement()
             } catch {
                 throw SqlParseError.unsupportedSyntax(

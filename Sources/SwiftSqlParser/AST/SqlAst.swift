@@ -274,6 +274,7 @@ public struct BinaryExpression: Expression, Sendable, Equatable {
     public enum BinaryOperator: String, Sendable {
         case equals
         case notEquals
+        case ilike
         case and
         case or
         case plus

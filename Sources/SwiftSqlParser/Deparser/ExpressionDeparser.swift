@@ -33,6 +33,7 @@ public struct ExpressionDeparser {
             let op = switch binary.operator {
             case .equals: "="
             case .notEquals: "<>"
+            case .ilike: "ILIKE"
             case .and: "AND"
             case .or: "OR"
             case .plus: "+"
