@@ -14,6 +14,30 @@ public struct StatementDeparser {
       return SelectDeparser(expressionDeparser: expressionDeparser).deparse(select)
     }
 
+    if let unsupported = statement as? UnsupportedStatement {
+      return unsupported.sql
+    }
+
+    if let explain = statement as? ExplainStatement {
+      return "EXPLAIN \(deparse(explain.statement))"
+    }
+
+    if let show = statement as? ShowStatement {
+      return "SHOW \(show.subject)"
+    }
+
+    if let set = statement as? SetStatement {
+      return "SET \(set.name) = \(expressionDeparser.deparse(set.value))"
+    }
+
+    if let reset = statement as? ResetStatement {
+      return "RESET \(reset.name)"
+    }
+
+    if let use = statement as? UseStatement {
+      return "USE \(use.target)"
+    }
+
     if let values = statement as? ValuesSelect {
       let rows = values.rows.map {
         "(\($0.map(expressionDeparser.deparse).joined(separator: ", ")))"

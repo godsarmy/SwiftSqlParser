@@ -4,10 +4,16 @@ import Testing
 
 private struct CountingStatementVisitor: StatementVisitor {
   var rawCount = 0
+  var unsupportedCount = 0
   var selectCount = 0
   var valuesCount = 0
   var withCount = 0
   var setOperationCount = 0
+  var explainCount = 0
+  var showCount = 0
+  var setCount = 0
+  var resetCount = 0
+  var useCount = 0
   var mergeCount = 0
   var replaceCount = 0
   var insertCount = 0
@@ -24,6 +30,10 @@ private struct CountingStatementVisitor: StatementVisitor {
     rawCount += 1
   }
 
+  mutating func visit(unsupportedStatement: UnsupportedStatement) {
+    unsupportedCount += 1
+  }
+
   mutating func visit(plainSelect: PlainSelect) {
     selectCount += 1
   }
@@ -38,6 +48,26 @@ private struct CountingStatementVisitor: StatementVisitor {
 
   mutating func visit(setOperationSelect: SetOperationSelect) {
     setOperationCount += 1
+  }
+
+  mutating func visit(explainStatement: ExplainStatement) {
+    explainCount += 1
+  }
+
+  mutating func visit(showStatement: ShowStatement) {
+    showCount += 1
+  }
+
+  mutating func visit(setStatement: SetStatement) {
+    setCount += 1
+  }
+
+  mutating func visit(resetStatement: ResetStatement) {
+    resetCount += 1
+  }
+
+  mutating func visit(useStatement: UseStatement) {
+    useCount += 1
   }
 
   mutating func visit(mergeStatement: MergeStatement) {
@@ -110,10 +140,16 @@ func statementVisitorDispatchesExpectedType() {
 
   AstVisit.statement(statement, visitor: &visitor)
   #expect(visitor.rawCount == 1)
+  #expect(visitor.unsupportedCount == 0)
   #expect(visitor.selectCount == 0)
   #expect(visitor.valuesCount == 0)
   #expect(visitor.withCount == 0)
   #expect(visitor.setOperationCount == 0)
+  #expect(visitor.explainCount == 0)
+  #expect(visitor.showCount == 0)
+  #expect(visitor.setCount == 0)
+  #expect(visitor.resetCount == 0)
+  #expect(visitor.useCount == 0)
   #expect(visitor.mergeCount == 0)
   #expect(visitor.replaceCount == 0)
   #expect(visitor.insertCount == 0)
@@ -125,6 +161,24 @@ func statementVisitorDispatchesExpectedType() {
   #expect(visitor.alterCount == 0)
   #expect(visitor.dropCount == 0)
   #expect(visitor.truncateCount == 0)
+}
+
+@Test
+func deparserHandlesUtilityStatements() {
+  let deparser = StatementDeparser()
+
+  #expect(deparser.deparse(ShowStatement(subject: "TABLES")) == "SHOW TABLES")
+  #expect(deparser.deparse(ResetStatement(name: "work_mem")) == "RESET work_mem")
+  #expect(deparser.deparse(UseStatement(target: "analytics")) == "USE analytics")
+  #expect(
+    deparser.deparse(SetStatement(name: "search_path", value: IdentifierExpression(name: "public")))
+      == "SET search_path = public")
+  #expect(
+    deparser.deparse(
+      ExplainStatement(
+        statement: PlainSelect(
+          selectItems: [AllColumnsSelectItem()], from: TableFromItem(name: "users"))))
+      == "EXPLAIN SELECT * FROM users")
 }
 
 @Test

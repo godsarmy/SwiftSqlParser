@@ -28,3 +28,21 @@ func parseScriptCollectsStatementLevelFailures() {
       $0.normalizedMessage == "empty_statement:script statement is empty"
     })
 }
+
+@Test
+func parseScriptIgnoresSeparatorsInsideQuotedStrings() {
+  let result = parseScript("SELECT 'a;b' FROM a;SELECT * FROM b")
+  #expect(result.statements.count == 2)
+  #expect(result.diagnostics.isEmpty)
+}
+
+@Test
+func parseScriptRecoversUnsupportedStatementsWhenEnabled() {
+  let options = ParserOptions(recoverUnsupportedStatements: true)
+  let result = parseScript("SELECT * FROM a;MATCH_RECOGNIZE (foo);SHOW TABLES", options: options)
+
+  #expect(result.statements.count == 3)
+  #expect(result.statements[1] is UnsupportedStatement)
+  #expect(result.diagnostics.count == 1)
+  #expect(result.diagnostics[0].normalizedMessage == "unsupported_syntax:match_recognize")
+}

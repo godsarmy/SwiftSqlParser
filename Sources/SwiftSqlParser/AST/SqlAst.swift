@@ -3,6 +3,16 @@ public protocol Expression: Sendable {}
 public protocol SelectItem: Sendable {}
 public protocol FromItem: Sendable {}
 
+public struct UnsupportedStatement: Statement, Sendable, Equatable {
+  public let sql: String
+  public let diagnostic: SqlDiagnostic
+
+  public init(sql: String, diagnostic: SqlDiagnostic) {
+    self.sql = sql
+    self.diagnostic = diagnostic
+  }
+}
+
 public struct RawExpression: Expression, Sendable, Equatable {
   public let sql: String
 
@@ -169,6 +179,56 @@ public struct ValuesSelect: Statement, Sendable, Equatable {
 
   public static func == (lhs: ValuesSelect, rhs: ValuesSelect) -> Bool {
     lhs.rows.count == rhs.rows.count
+  }
+}
+
+public struct ExplainStatement: Statement, Sendable, Equatable {
+  public let statement: any Statement
+
+  public init(statement: any Statement) {
+    self.statement = statement
+  }
+
+  public static func == (lhs: ExplainStatement, rhs: ExplainStatement) -> Bool {
+    String(describing: type(of: lhs.statement)) == String(describing: type(of: rhs.statement))
+  }
+}
+
+public struct ShowStatement: Statement, Sendable, Equatable {
+  public let subject: String
+
+  public init(subject: String) {
+    self.subject = subject
+  }
+}
+
+public struct SetStatement: Statement, Sendable, Equatable {
+  public let name: String
+  public let value: any Expression
+
+  public init(name: String, value: any Expression) {
+    self.name = name
+    self.value = value
+  }
+
+  public static func == (lhs: SetStatement, rhs: SetStatement) -> Bool {
+    lhs.name == rhs.name
+  }
+}
+
+public struct ResetStatement: Statement, Sendable, Equatable {
+  public let name: String
+
+  public init(name: String) {
+    self.name = name
+  }
+}
+
+public struct UseStatement: Statement, Sendable, Equatable {
+  public let target: String
+
+  public init(target: String) {
+    self.target = target
   }
 }
 

@@ -241,11 +241,11 @@ This file tracks major feature gaps between `SwiftSqlParser` and `JSqlParser` an
 
 ### Milestone 7: Utility statements and scripting
 
-- [ ] Improve `parseScript` to be delimiter-aware rather than pure substring splitting
-- [ ] Add unsupported-statement recovery mode
-- [ ] Add utility statements such as `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
-- [ ] Evaluate support for procedural blocks (`IF`, `BEGIN ... END`) if parity requires them
-- [ ] Add script-level diagnostics and recovery tests
+- [x] Improve `parseScript` to be delimiter-aware rather than pure substring splitting
+- [x] Add unsupported-statement recovery mode
+- [x] Add utility statements such as `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
+- [x] Evaluate support for procedural blocks (`IF`, `BEGIN ... END`) if parity requires them
+- [x] Add script-level diagnostics and recovery tests
 
 ### Milestone 8: Ecosystem parity
 

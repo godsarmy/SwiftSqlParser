@@ -22,6 +22,25 @@ func parseStatementsRespectsSeparators() throws {
 }
 
 @Test
+func parseStatementsIgnoresSeparatorsInsideStrings() throws {
+  let options = ParserOptions(scriptSeparators: [";"])
+  let statements = try parseStatements(
+    "SELECT 'a;b' FROM users;SELECT * FROM roles", options: options)
+  #expect(statements.count == 2)
+}
+
+@Test
+func utilityStatementsParseIntoDedicatedAstNodes() throws {
+  #expect(try parseStatement("SHOW TABLES") is ShowStatement)
+  #expect(try parseStatement("RESET work_mem") is ResetStatement)
+  #expect(try parseStatement("USE analytics") is UseStatement)
+  #expect(try parseStatement("EXPLAIN SELECT * FROM users") is ExplainStatement)
+
+  let set = try parseStatement("SET search_path = public")
+  #expect(set is SetStatement)
+}
+
+@Test
 func parseStatementFailsOnEmptyInput() {
   #expect(throws: SqlParseError.self) {
     let _ = try parseStatement("   ")

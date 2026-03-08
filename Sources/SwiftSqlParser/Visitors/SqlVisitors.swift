@@ -1,9 +1,15 @@
 public protocol StatementVisitor {
   mutating func visit(rawStatement: RawStatement)
+  mutating func visit(unsupportedStatement: UnsupportedStatement)
   mutating func visit(plainSelect: PlainSelect)
   mutating func visit(valuesSelect: ValuesSelect)
   mutating func visit(withSelect: WithSelect)
   mutating func visit(setOperationSelect: SetOperationSelect)
+  mutating func visit(explainStatement: ExplainStatement)
+  mutating func visit(showStatement: ShowStatement)
+  mutating func visit(setStatement: SetStatement)
+  mutating func visit(resetStatement: ResetStatement)
+  mutating func visit(useStatement: UseStatement)
   mutating func visit(mergeStatement: MergeStatement)
   mutating func visit(replaceStatement: ReplaceStatement)
   mutating func visit(insertStatement: InsertStatement)
@@ -19,10 +25,16 @@ public protocol StatementVisitor {
 
 extension StatementVisitor {
   public mutating func visit(rawStatement: RawStatement) {}
+  public mutating func visit(unsupportedStatement: UnsupportedStatement) {}
   public mutating func visit(plainSelect: PlainSelect) {}
   public mutating func visit(valuesSelect: ValuesSelect) {}
   public mutating func visit(withSelect: WithSelect) {}
   public mutating func visit(setOperationSelect: SetOperationSelect) {}
+  public mutating func visit(explainStatement: ExplainStatement) {}
+  public mutating func visit(showStatement: ShowStatement) {}
+  public mutating func visit(setStatement: SetStatement) {}
+  public mutating func visit(resetStatement: ResetStatement) {}
+  public mutating func visit(useStatement: UseStatement) {}
   public mutating func visit(mergeStatement: MergeStatement) {}
   public mutating func visit(replaceStatement: ReplaceStatement) {}
   public mutating func visit(insertStatement: InsertStatement) {}
@@ -102,6 +114,36 @@ public enum AstVisit {
   public static func statement<V: StatementVisitor>(_ statement: any Statement, visitor: inout V) {
     if let raw = statement as? RawStatement {
       visitor.visit(rawStatement: raw)
+      return
+    }
+
+    if let unsupported = statement as? UnsupportedStatement {
+      visitor.visit(unsupportedStatement: unsupported)
+      return
+    }
+
+    if let explain = statement as? ExplainStatement {
+      visitor.visit(explainStatement: explain)
+      return
+    }
+
+    if let show = statement as? ShowStatement {
+      visitor.visit(showStatement: show)
+      return
+    }
+
+    if let set = statement as? SetStatement {
+      visitor.visit(setStatement: set)
+      return
+    }
+
+    if let reset = statement as? ResetStatement {
+      visitor.visit(resetStatement: reset)
+      return
+    }
+
+    if let use = statement as? UseStatement {
+      visitor.visit(useStatement: use)
       return
     }
 

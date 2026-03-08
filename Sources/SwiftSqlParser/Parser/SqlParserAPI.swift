@@ -8,6 +8,11 @@ public struct RawStatement: Statement, Equatable, Sendable {
   }
 }
 
+private struct ScriptChunk {
+  let sql: String
+  let location: SqlSourceLocation
+}
+
 public enum SqlParseError: Error, Equatable, Sendable {
   case emptyInput(SqlDiagnostic)
   case emptyStatement(SqlDiagnostic)
@@ -52,9 +57,51 @@ public struct SqlParser: Sendable {
     }
 
     _ = options
-    try validateSupportedSyntax(cleaned, options: options)
+    do {
+      try validateSupportedSyntax(cleaned, options: options)
+    } catch let error as SqlParseError {
+      if options.recoverUnsupportedStatements {
+        return UnsupportedStatement(sql: cleaned, diagnostic: error.diagnostic)
+      }
+      throw error
+    }
 
     let uppercased = cleaned.uppercased()
+
+    if uppercased.hasPrefix("EXPLAIN ") {
+      do {
+        let inner = String(cleaned.dropFirst("EXPLAIN".count)).trimmingCharacters(
+          in: .whitespacesAndNewlines)
+        return ExplainStatement(statement: try parseStatement(inner, options: options))
+      } catch let error as SqlParseError {
+        if options.recoverUnsupportedStatements {
+          return UnsupportedStatement(sql: cleaned, diagnostic: error.diagnostic)
+        }
+        throw error
+      }
+    }
+
+    if uppercased.hasPrefix("SHOW ") {
+      return ShowStatement(
+        subject: String(cleaned.dropFirst("SHOW".count)).trimmingCharacters(
+          in: .whitespacesAndNewlines))
+    }
+
+    if uppercased.hasPrefix("SET ") {
+      return try parseSetStatement(cleaned, options: options)
+    }
+
+    if uppercased.hasPrefix("RESET ") {
+      return ResetStatement(
+        name: String(cleaned.dropFirst("RESET".count)).trimmingCharacters(
+          in: .whitespacesAndNewlines))
+    }
+
+    if uppercased.hasPrefix("USE ") {
+      return UseStatement(
+        target: String(cleaned.dropFirst("USE".count)).trimmingCharacters(
+          in: .whitespacesAndNewlines))
+    }
 
     if uppercased.hasPrefix("INSERT ") || uppercased.hasPrefix("UPDATE ")
       || uppercased.hasPrefix("DELETE ") || uppercased.hasPrefix("MERGE ")
@@ -64,15 +111,17 @@ public struct SqlParser: Sendable {
         var dmlParser = try DmlParser(sql: cleaned, options: options)
         return try dmlParser.parseStatement()
       } catch {
-        throw SqlParseError.unsupportedSyntax(
-          SqlDiagnostic(
-            code: .unsupportedSyntax,
-            message: "Statement uses unsupported DML syntax.",
-            normalizedMessage: "unsupported_syntax:dml_parse_failure",
-            location: .init(line: 1, column: 1, offset: 0),
-            token: "DML"
-          )
+        let diagnostic = SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "Statement uses unsupported DML syntax.",
+          normalizedMessage: "unsupported_syntax:dml_parse_failure",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: "DML"
         )
+        if options.recoverUnsupportedStatements {
+          return UnsupportedStatement(sql: cleaned, diagnostic: diagnostic)
+        }
+        throw SqlParseError.unsupportedSyntax(diagnostic)
       }
     }
 
@@ -83,15 +132,17 @@ public struct SqlParser: Sendable {
         var ddlParser = try DdlParser(sql: cleaned, options: options)
         return try ddlParser.parseStatement()
       } catch {
-        throw SqlParseError.unsupportedSyntax(
-          SqlDiagnostic(
-            code: .unsupportedSyntax,
-            message: "Statement uses unsupported DDL syntax.",
-            normalizedMessage: "unsupported_syntax:ddl_parse_failure",
-            location: .init(line: 1, column: 1, offset: 0),
-            token: "DDL"
-          )
+        let diagnostic = SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "Statement uses unsupported DDL syntax.",
+          normalizedMessage: "unsupported_syntax:ddl_parse_failure",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: "DDL"
         )
+        if options.recoverUnsupportedStatements {
+          return UnsupportedStatement(sql: cleaned, diagnostic: diagnostic)
+        }
+        throw SqlParseError.unsupportedSyntax(diagnostic)
       }
     }
 
@@ -102,15 +153,17 @@ public struct SqlParser: Sendable {
         var selectParser = try SelectCoreParser(sql: cleaned, options: options)
         return try selectParser.parseStatement()
       } catch {
-        throw SqlParseError.unsupportedSyntax(
-          SqlDiagnostic(
-            code: .unsupportedSyntax,
-            message: "Statement uses unsupported query syntax.",
-            normalizedMessage: "unsupported_syntax:query_parse_failure",
-            location: .init(line: 1, column: 1, offset: 0),
-            token: "QUERY"
-          )
+        let diagnostic = SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "Statement uses unsupported query syntax.",
+          normalizedMessage: "unsupported_syntax:query_parse_failure",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: "QUERY"
         )
+        if options.recoverUnsupportedStatements {
+          return UnsupportedStatement(sql: cleaned, diagnostic: diagnostic)
+        }
+        throw SqlParseError.unsupportedSyntax(diagnostic)
       }
     }
 
@@ -132,10 +185,9 @@ public struct SqlParser: Sendable {
       )
     }
 
-    let statements: [String] = options.scriptSeparators.reduce([cleaned]) { partial, separator in
-      partial.flatMap { splitStatementChunks($0, separator: separator) }
+    let statements = splitScriptChunks(cleaned, separators: options.scriptSeparators).map {
+      $0.sql.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     let containsEmptyChunk = statements.contains(where: \String.isEmpty)
     if containsEmptyChunk {
@@ -154,8 +206,7 @@ public struct SqlParser: Sendable {
   }
 
   public func parseScript(_ sql: String, options: ParserOptions = .init()) -> ScriptParseResult {
-    let separator = options.scriptSeparators.first ?? ";"
-    if separator.isEmpty {
+    if options.scriptSeparators.contains(where: \.isEmpty) {
       return ScriptParseResult(
         statements: [],
         diagnostics: [
@@ -168,28 +219,28 @@ public struct SqlParser: Sendable {
         ])
     }
 
-    let chunks = splitStatementChunks(sql, separator: separator)
-    var line = 1
-    var column = 1
-    var offset = 0
+    let chunks = splitScriptChunks(sql, separators: options.scriptSeparators)
     var statements: [any Statement] = []
     var diagnostics: [SqlDiagnostic] = []
 
     for chunk in chunks {
-      let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+      let trimmed = chunk.sql.trimmingCharacters(in: .whitespacesAndNewlines)
       if trimmed.isEmpty {
         diagnostics.append(
           SqlDiagnostic(
             code: .emptyStatement,
             message: "Script statement is empty.",
             normalizedMessage: "empty_statement:script statement is empty",
-            location: .init(line: line, column: column, offset: offset),
-            token: separator
+            location: chunk.location
           )
         )
       } else {
         do {
-          statements.append(try parseStatement(trimmed, options: options))
+          let statement = try parseStatement(trimmed, options: options)
+          statements.append(statement)
+          if let unsupported = statement as? UnsupportedStatement {
+            diagnostics.append(unsupported.diagnostic)
+          }
         } catch let error as SqlParseError {
           diagnostics.append(error.diagnostic)
         } catch {
@@ -198,44 +249,164 @@ public struct SqlParser: Sendable {
               code: .unsupportedSyntax,
               message: "Statement uses unsupported syntax.",
               normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
-              location: .init(line: line, column: column, offset: offset)
+              location: chunk.location
             )
           )
         }
       }
-
-      for character in chunk {
-        offset += 1
-        if character == "\n" {
-          line += 1
-          column = 1
-        } else {
-          column += 1
-        }
-      }
-
-      offset += separator.count
-      column += separator.count
     }
 
     return ScriptParseResult(statements: statements, diagnostics: diagnostics)
   }
 
-  private func splitStatementChunks(_ input: String, separator: String) -> [String] {
-    guard separator.isEmpty == false else {
-      return [input]
+  private func splitScriptChunks(_ input: String, separators: [String]) -> [ScriptChunk] {
+    guard separators.isEmpty == false else {
+      return [ScriptChunk(sql: input, location: .init(line: 1, column: 1, offset: 0))]
     }
 
-    var parts: [String] = []
-    parts.reserveCapacity(max(1, input.count / max(separator.count, 1)))
+    var chunks: [ScriptChunk] = []
+    var current = ""
+    var chunkLine = 1
+    var chunkColumn = 1
+    var chunkOffset = 0
+    var line = 1
+    var column = 1
+    var offset = 0
+    var parenthesisDepth = 0
+    var index = input.startIndex
+    var quoteState: Character?
 
-    var start = input.startIndex
-    while let range = input.range(of: separator, range: start..<input.endIndex) {
-      parts.append(String(input[start..<range.lowerBound]))
-      start = range.upperBound
+    while index < input.endIndex {
+      let character = input[index]
+
+      if let quote = quoteState {
+        current.append(character)
+        if character == quote {
+          if quote == "'" {
+            let next = input.index(after: index)
+            if next < input.endIndex, input[next] == "'" {
+              current.append(input[next])
+              index = next
+              offset += 1
+              column += 1
+            } else {
+              quoteState = nil
+            }
+          } else {
+            quoteState = nil
+          }
+        }
+      } else if character == "'" || character == "\"" || character == "`" {
+        quoteState = character
+        current.append(character)
+      } else if character == "[" {
+        quoteState = "]"
+        current.append(character)
+      } else if character == "(" {
+        parenthesisDepth += 1
+        current.append(character)
+      } else if character == ")" {
+        parenthesisDepth = max(0, parenthesisDepth - 1)
+        current.append(character)
+      } else if parenthesisDepth == 0,
+        let separator = separators.first(where: { input[index...].hasPrefix($0) })
+      {
+        chunks.append(
+          ScriptChunk(
+            sql: current, location: .init(line: chunkLine, column: chunkColumn, offset: chunkOffset)
+          ))
+        current = ""
+        for _ in 0..<separator.count {
+          if input[index] == "\n" {
+            line += 1
+            column = 1
+          } else {
+            column += 1
+          }
+          offset += 1
+          index = input.index(after: index)
+        }
+        chunkLine = line
+        chunkColumn = column
+        chunkOffset = offset
+        continue
+      } else {
+        current.append(character)
+      }
+
+      if character == "\n" {
+        line += 1
+        column = 1
+      } else {
+        column += 1
+      }
+      offset += 1
+      index = input.index(after: index)
     }
-    parts.append(String(input[start..<input.endIndex]))
-    return parts
+
+    chunks.append(
+      ScriptChunk(
+        sql: current, location: .init(line: chunkLine, column: chunkColumn, offset: chunkOffset)))
+    return chunks
+  }
+
+  private func parseSetStatement(_ sql: String, options: ParserOptions) throws -> SetStatement {
+    let assignment = String(sql.dropFirst("SET".count)).trimmingCharacters(
+      in: .whitespacesAndNewlines)
+    guard let range = assignment.range(of: "=") else {
+      throw SqlParseError.unsupportedSyntax(
+        SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "SET statements must assign a value.",
+          normalizedMessage: "unsupported_syntax:set_parse_failure",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: "SET"
+        ))
+    }
+
+    let name = String(assignment[..<range.lowerBound]).trimmingCharacters(
+      in: .whitespacesAndNewlines)
+    let valueSql = String(assignment[range.upperBound...]).trimmingCharacters(
+      in: .whitespacesAndNewlines)
+    guard name.isEmpty == false, valueSql.isEmpty == false else {
+      throw SqlParseError.unsupportedSyntax(
+        SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "SET statements must assign a value.",
+          normalizedMessage: "unsupported_syntax:set_parse_failure",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: "SET"
+        ))
+    }
+
+    let wrapper = "SELECT \(valueSql) FROM settings"
+    do {
+      var parser = try SelectCoreParser(sql: wrapper, options: options)
+      guard let select = try parser.parseStatement() as? PlainSelect,
+        let item = select.selectItems.first as? ExpressionSelectItem
+      else {
+        throw SqlParseError.unsupportedSyntax(
+          SqlDiagnostic(
+            code: .unsupportedSyntax,
+            message: "Statement uses unsupported SET syntax.",
+            normalizedMessage: "unsupported_syntax:set_parse_failure",
+            location: .init(line: 1, column: 1, offset: 0),
+            token: "SET"
+          ))
+      }
+      return SetStatement(name: name, value: item.expression)
+    } catch let error as SqlParseError {
+      throw error
+    } catch {
+      throw SqlParseError.unsupportedSyntax(
+        SqlDiagnostic(
+          code: .unsupportedSyntax,
+          message: "Statement uses unsupported SET syntax.",
+          normalizedMessage: "unsupported_syntax:set_parse_failure",
+          location: .init(line: 1, column: 1, offset: 0),
+          token: "SET"
+        ))
+    }
   }
 
   private func validateSupportedSyntax(_ sql: String, options: ParserOptions) throws {

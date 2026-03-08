@@ -32,6 +32,7 @@ public struct ParserOptions: Sendable, Equatable {
   public var identifierQuoting: IdentifierQuotingBehavior
   public var escapeBehavior: EscapeBehavior
   public var scriptSeparators: [String]
+  public var recoverUnsupportedStatements: Bool
   public var dialectFeatures: Set<DialectFeature>
   public var experimentalFeatures: Set<ExperimentalFeature>
 
@@ -39,12 +40,14 @@ public struct ParserOptions: Sendable, Equatable {
     identifierQuoting: IdentifierQuotingBehavior = .ansiDoubleQuotes,
     escapeBehavior: EscapeBehavior = .backslash,
     scriptSeparators: [String] = [";"],
+    recoverUnsupportedStatements: Bool = false,
     dialectFeatures: Set<DialectFeature> = [],
     experimentalFeatures: Set<ExperimentalFeature> = []
   ) {
     self.identifierQuoting = identifierQuoting
     self.escapeBehavior = escapeBehavior
     self.scriptSeparators = scriptSeparators
+    self.recoverUnsupportedStatements = recoverUnsupportedStatements
     self.dialectFeatures = dialectFeatures
     self.experimentalFeatures = experimentalFeatures
   }

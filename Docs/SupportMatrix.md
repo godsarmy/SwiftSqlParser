@@ -21,6 +21,7 @@ This matrix tracks currently implemented parser support in SwiftSqlParser.
 | `ALTER TABLE` | Supported | `ADD/DROP [COLUMN]`, `RENAME [COLUMN]`, `RENAME TO`, `ADD/DROP CONSTRAINT` |
 | `DROP TABLE` | Supported | single table |
 | `TRUNCATE [TABLE]` | Supported | single table |
+| Utility statements | Supported | `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE` |
 
 ## Dialect Features
 
@@ -68,11 +69,14 @@ Dialect behavior is option-driven and may require both a dialect flag and an exp
 
 The following syntax remains intentionally unsupported and reported via normalized diagnostics for parity tracking:
 
-- `MERGE`
-- `QUALIFY`
-- `PIVOT`
-- `UNPIVOT`
 - `MATCH_RECOGNIZE`
+
+## Script Parsing
+
+| Feature | Status | Notes |
+|---|---|---|
+| Delimiter-aware splitting | Supported | ignores separators inside quoted strings and nested parentheses |
+| Unsupported recovery | Supported | `ParserOptions(recoverUnsupportedStatements: true)` returns `UnsupportedStatement` while preserving diagnostics |
 
 ## Stability Notes
 
