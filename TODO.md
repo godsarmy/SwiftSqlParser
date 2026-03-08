@@ -100,9 +100,9 @@
 
 ## 10) Versioning and Compatibility
 
-- [ ] Define versioning policy for AST/API evolution.
-- [ ] Mark experimental features clearly behind flags.
-- [ ] Maintain compatibility notes with JSqlParser behavior differences.
+- [x] Define versioning policy for AST/API evolution.
+- [x] Mark experimental features clearly behind flags.
+- [x] Maintain compatibility notes with JSqlParser behavior differences.
 
 ## 11) Suggested Release Milestones
 

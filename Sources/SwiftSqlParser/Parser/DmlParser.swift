@@ -145,7 +145,9 @@ struct DmlParser {
             if match(symbol: "=") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .equals, right: rhs)
-            } else if options.dialectFeatures.contains(.postgres), matchKeyword("ILIKE") {
+            } else if options.dialectFeatures.contains(.postgres)
+                && options.experimentalFeatures.contains(.postgresIlike)
+                && matchKeyword("ILIKE") {
                 let rhs = try parseAdditiveExpression()
                 expression = BinaryExpression(left: expression, operator: .ilike, right: rhs)
             } else if match(symbol: "<>") || match(symbol: "!=") {
@@ -383,21 +385,23 @@ private struct Tokenizer {
                 continue
             }
 
-            if character == "\"" {
+            if character == "\"", options.experimentalFeatures.contains(.quotedIdentifiers) {
                 let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "\"")
                 tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
                 continue
             }
 
-            if character == "[", options.identifierQuoting == .squareBrackets || options.dialectFeatures.contains(.sqlServer) {
+            if character == "[", options.experimentalFeatures.contains(.quotedIdentifiers)
+                && (options.identifierQuoting == .squareBrackets || options.dialectFeatures.contains(.sqlServer)) {
                 let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
                 tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
                 continue
             }
 
-            if character == "`", options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.bigQuery) || options.dialectFeatures.contains(.snowflake) {
+            if character == "`", options.experimentalFeatures.contains(.quotedIdentifiers)
+                && (options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.bigQuery) || options.dialectFeatures.contains(.snowflake)) {
                 let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
                 tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex

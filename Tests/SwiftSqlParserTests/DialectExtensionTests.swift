@@ -3,7 +3,11 @@ import Testing
 
 @Test
 func sqlServerSquareBracketIdentifiersParseWhenEnabled() throws {
-    let options = ParserOptions(identifierQuoting: .squareBrackets, dialectFeatures: [.sqlServer])
+    let options = ParserOptions(
+        identifierQuoting: .squareBrackets,
+        dialectFeatures: [.sqlServer],
+        experimentalFeatures: [.quotedIdentifiers]
+    )
     let parsed = try parseStatement("SELECT [u].[id] FROM [dbo].[users] [u]", options: options)
 
     guard let select = parsed as? PlainSelect else {
@@ -17,7 +21,7 @@ func sqlServerSquareBracketIdentifiersParseWhenEnabled() throws {
 
 @Test
 func mysqlBacktickIdentifiersParseWhenEnabled() throws {
-    let options = ParserOptions(dialectFeatures: [.mysql])
+    let options = ParserOptions(dialectFeatures: [.mysql], experimentalFeatures: [.quotedIdentifiers])
     let parsed = try parseStatement("SELECT `id` FROM `users`", options: options)
 
     guard let select = parsed as? PlainSelect else {
@@ -31,7 +35,7 @@ func mysqlBacktickIdentifiersParseWhenEnabled() throws {
 
 @Test
 func postgresIlikeParsesWhenFeatureEnabled() throws {
-    let options = ParserOptions(dialectFeatures: [.postgres])
+    let options = ParserOptions(dialectFeatures: [.postgres], experimentalFeatures: [.postgresIlike])
     let parsed = try parseStatement("SELECT id FROM users WHERE name ILIKE 'a%'", options: options)
 
     guard let select = parsed as? PlainSelect,

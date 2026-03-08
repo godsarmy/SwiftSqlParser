@@ -10,7 +10,10 @@ private struct BenchmarkResult {
 struct SwiftSqlParserBenchmarkMain {
     static func main() {
         let corpus = makeCorpus(statementCount: 12_000)
-        let options = ParserOptions(dialectFeatures: [.postgres, .mysql, .sqlServer])
+        let options = ParserOptions(
+            dialectFeatures: [.postgres, .mysql, .sqlServer],
+            experimentalFeatures: [.postgresIlike, .quotedIdentifiers]
+        )
 
         let results: [BenchmarkResult] = [
             measure(name: "parseStatement loop") {

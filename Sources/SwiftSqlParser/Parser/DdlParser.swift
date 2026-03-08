@@ -215,21 +215,23 @@ private struct Tokenizer {
                 continue
             }
 
-            if character == "\"" {
+            if character == "\"", options.experimentalFeatures.contains(.quotedIdentifiers) {
                 let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "\"")
                 tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
                 continue
             }
 
-            if character == "[", options.identifierQuoting == .squareBrackets || options.dialectFeatures.contains(.sqlServer) {
+            if character == "[", options.experimentalFeatures.contains(.quotedIdentifiers)
+                && (options.identifierQuoting == .squareBrackets || options.dialectFeatures.contains(.sqlServer)) {
                 let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
                 tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
                 continue
             }
 
-            if character == "`", options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.bigQuery) || options.dialectFeatures.contains(.snowflake) {
+            if character == "`", options.experimentalFeatures.contains(.quotedIdentifiers)
+                && (options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.bigQuery) || options.dialectFeatures.contains(.snowflake)) {
                 let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
                 tokens.append(Token(text: identifier, kind: .identifier))
                 index = nextIndex
