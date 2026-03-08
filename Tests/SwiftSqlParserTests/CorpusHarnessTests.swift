@@ -29,7 +29,12 @@ func corpusSuccessStatementsParse() throws {
 
     for statement in statements {
         let parsed = try parseStatement(statement)
-        #expect(parsed is RawStatement)
+
+        if statement.uppercased().hasPrefix("SELECT ") {
+            #expect(parsed is PlainSelect)
+        } else {
+            #expect(parsed is RawStatement)
+        }
     }
 }
 

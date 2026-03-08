@@ -7,9 +7,9 @@ func moduleCompiles() {
 }
 
 @Test
-func parseStatementReturnsRawStatement() throws {
+func parseStatementBuildsSelectAstForSelectQuery() throws {
     let statement = try parseStatement("SELECT * FROM users")
-    #expect(statement is RawStatement)
+    #expect(statement is PlainSelect)
 }
 
 @Test
@@ -17,6 +17,7 @@ func parseStatementsRespectsSeparators() throws {
     let options = ParserOptions(scriptSeparators: [";"])
     let statements = try parseStatements("SELECT * FROM users;SELECT * FROM roles", options: options)
     #expect(statements.count == 2)
+    #expect(statements.allSatisfy { $0 is PlainSelect })
 }
 
 @Test

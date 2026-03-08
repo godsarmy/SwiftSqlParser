@@ -51,6 +51,24 @@ public struct SqlParser: Sendable {
 
         _ = options
         try validateSupportedSyntax(cleaned)
+
+        if cleaned.uppercased().hasPrefix("SELECT ") {
+            do {
+                var selectParser = try SelectCoreParser(sql: cleaned)
+                return try selectParser.parse()
+            } catch {
+                throw SqlParseError.unsupportedSyntax(
+                    SqlDiagnostic(
+                        code: .unsupportedSyntax,
+                        message: "Statement uses unsupported SELECT syntax.",
+                        normalizedMessage: "unsupported_syntax:select_core_parse_failure",
+                        location: .init(line: 1, column: 1, offset: 0),
+                        token: "SELECT"
+                    )
+                )
+            }
+        }
+
         return RawStatement(sql: cleaned)
     }
 
@@ -85,9 +103,7 @@ public struct SqlParser: Sendable {
             )
         }
 
-        try statements.forEach(validateSupportedSyntax)
-
-        return statements.map(RawStatement.init(sql:))
+        return try statements.map { try parseStatement($0, options: options) }
     }
 
     public func parseScript(_ sql: String, options: ParserOptions = .init()) -> ScriptParseResult {
@@ -124,8 +140,7 @@ public struct SqlParser: Sendable {
                 )
             } else {
                 do {
-                    try validateSupportedSyntax(trimmed)
-                    statements.append(RawStatement(sql: trimmed))
+                    statements.append(try parseStatement(trimmed, options: options))
                 } catch let error as SqlParseError {
                     diagnostics.append(error.diagnostic)
                 } catch {

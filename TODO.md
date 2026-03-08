@@ -86,7 +86,7 @@
 
 ## 8) Incremental Feature Delivery (Vertical Slices)
 
-- [ ] Milestone A: `SELECT` core (projection, `FROM`, `WHERE`, joins).
+- [x] Milestone A: `SELECT` core (projection, `FROM`, `WHERE`, joins).
 - [ ] Milestone B: `WITH`/CTE + subqueries + set ops.
 - [ ] Milestone C: DML (`INSERT`, `UPDATE`, `DELETE`).
 - [ ] Milestone D: basic DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`).

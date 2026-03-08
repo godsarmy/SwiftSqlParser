@@ -14,6 +14,9 @@ public struct ExpressionDeparser {
         }
 
         if let numberLiteral = expression as? NumberLiteralExpression {
+            if numberLiteral.value.rounded() == numberLiteral.value {
+                return String(Int(numberLiteral.value))
+            }
             return String(numberLiteral.value)
         }
 

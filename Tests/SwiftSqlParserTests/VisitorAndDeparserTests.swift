@@ -37,5 +37,5 @@ func selectDeparserBuildsExpectedSql() {
     )
 
     let sql = StatementDeparser().deparse(select)
-    #expect(sql == "SELECT id FROM users WHERE active = 1.0")
+    #expect(sql == "SELECT id FROM users WHERE active = 1")
 }
