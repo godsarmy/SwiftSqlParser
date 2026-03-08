@@ -1,0 +1,10 @@
+SELECT * FROM users;
+SELECT id, name FROM users;
+SELECT id FROM users WHERE active = 1;
+SELECT id, created_at FROM audit_log;
+SELECT role FROM roles;
+INSERT INTO users (id, name) VALUES (1, 'Alice');
+UPDATE users SET active = 1 WHERE id = 1;
+DELETE FROM users WHERE id = 2;
+WITH active_users AS (SELECT id FROM users) SELECT id FROM active_users;
+CREATE TABLE users (id INT, name TEXT);

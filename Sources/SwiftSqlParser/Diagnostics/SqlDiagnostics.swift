@@ -13,6 +13,7 @@ public struct SqlSourceLocation: Sendable, Equatable {
 public enum SqlDiagnosticCode: String, Sendable {
     case emptyInput = "empty_input"
     case emptyStatement = "empty_statement"
+    case unsupportedSyntax = "unsupported_syntax"
 }
 
 public struct SqlDiagnostic: Error, Sendable, Equatable {

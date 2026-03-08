@@ -11,12 +11,15 @@ public struct RawStatement: Statement, Equatable, Sendable {
 public enum SqlParseError: Error, Equatable, Sendable {
     case emptyInput(SqlDiagnostic)
     case emptyStatement(SqlDiagnostic)
+    case unsupportedSyntax(SqlDiagnostic)
 
     public var diagnostic: SqlDiagnostic {
         switch self {
         case let .emptyInput(diagnostic):
             diagnostic
         case let .emptyStatement(diagnostic):
+            diagnostic
+        case let .unsupportedSyntax(diagnostic):
             diagnostic
         }
     }
@@ -47,6 +50,7 @@ public struct SqlParser: Sendable {
         }
 
         _ = options
+        try validateSupportedSyntax(cleaned)
         return RawStatement(sql: cleaned)
     }
 
@@ -80,6 +84,8 @@ public struct SqlParser: Sendable {
                 )
             )
         }
+
+        try statements.forEach(validateSupportedSyntax)
 
         return statements.map(RawStatement.init(sql:))
     }
@@ -117,7 +123,21 @@ public struct SqlParser: Sendable {
                     )
                 )
             } else {
-                statements.append(RawStatement(sql: trimmed))
+                do {
+                    try validateSupportedSyntax(trimmed)
+                    statements.append(RawStatement(sql: trimmed))
+                } catch let error as SqlParseError {
+                    diagnostics.append(error.diagnostic)
+                } catch {
+                    diagnostics.append(
+                        SqlDiagnostic(
+                            code: .unsupportedSyntax,
+                            message: "Statement uses unsupported syntax.",
+                            normalizedMessage: "unsupported_syntax:statement uses unsupported syntax",
+                            location: .init(line: line, column: column, offset: offset)
+                        )
+                    )
+                }
             }
 
             for character in chunk {
@@ -135,6 +155,29 @@ public struct SqlParser: Sendable {
         }
 
         return ScriptParseResult(statements: statements, diagnostics: diagnostics)
+    }
+
+    private func validateSupportedSyntax(_ sql: String) throws {
+        let uppercase = sql.uppercased()
+        let unsupportedRules: [(token: String, gap: String)] = [
+            ("MERGE", "merge_statement"),
+            ("QUALIFY", "qualify_clause"),
+            ("PIVOT", "pivot_clause"),
+            ("UNPIVOT", "unpivot_clause"),
+            ("MATCH_RECOGNIZE", "match_recognize")
+        ]
+
+        for rule in unsupportedRules where uppercase.contains(rule.token) {
+            throw SqlParseError.unsupportedSyntax(
+                SqlDiagnostic(
+                    code: .unsupportedSyntax,
+                    message: "Unsupported syntax token '\(rule.token)'.",
+                    normalizedMessage: "unsupported_syntax:\(rule.gap)",
+                    location: .init(line: 1, column: 1, offset: 0),
+                    token: rule.token
+                )
+            )
+        }
     }
 }
 

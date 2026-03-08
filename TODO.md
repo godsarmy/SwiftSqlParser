@@ -77,12 +77,12 @@
 
 ## 7) Test Strategy and Corpus
 
-- [ ] Create test categories:
-  - [ ] parser success/failure tests
-  - [ ] AST shape assertions for key grammar constructs
-  - [ ] round-trip parse/deparse tests
-- [ ] Add large real-world SQL corpus files for regression testing.
-- [ ] Build a parity test harness that maps unsupported syntax to tracked gaps.
+- [x] Create test categories:
+  - [x] parser success/failure tests
+  - [x] AST shape assertions for key grammar constructs
+  - [x] round-trip parse/deparse tests
+- [x] Add large real-world SQL corpus files for regression testing.
+- [x] Build a parity test harness that maps unsupported syntax to tracked gaps.
 
 ## 8) Incremental Feature Delivery (Vertical Slices)
 

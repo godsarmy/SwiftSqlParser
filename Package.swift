@@ -19,7 +19,10 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftSqlParserTests",
-            dependencies: ["SwiftSqlParser"]
+            dependencies: ["SwiftSqlParser"],
+            resources: [
+                .process("Resources")
+            ]
         )
     ]
 )
