@@ -249,11 +249,11 @@ This file tracks major feature gaps between `SwiftSqlParser` and `JSqlParser` an
 
 ### Milestone 8: Ecosystem parity
 
-- [ ] Add a table-name finder utility
-- [ ] Expand visitors for all new AST families
-- [ ] Expand deparsers for all new AST families
-- [ ] Update `Docs/SupportMatrix.md` as each feature lands
-- [ ] Add corpus/parity fixtures derived from JSqlParser-supported SQL samples
+- [x] Add a table-name finder utility
+- [x] Expand visitors for all new AST families
+- [x] Expand deparsers for all new AST families
+- [x] Update `Docs/SupportMatrix.md` as each feature lands
+- [x] Add corpus/parity fixtures derived from JSqlParser-supported SQL samples
 
 ## Suggested Work Breakdown
 

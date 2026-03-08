@@ -182,6 +182,37 @@ func deparserHandlesUtilityStatements() {
 }
 
 @Test
+func tableNameFinderCollectsReferencedTables() throws {
+  let statement = try parseStatement(
+    "WITH active_users AS (SELECT id FROM users) SELECT r.id FROM active_users a INNER JOIN roles r ON a.id = r.user_id"
+  )
+
+  let names = TableNameFinder().find(in: statement)
+  #expect(names == ["roles", "users"])
+}
+
+@Test
+func tableNameFinderHandlesDmlAndDdlTargets() {
+  let insert = InsertStatement(
+    table: "archived_users",
+    columns: ["id"],
+    source: .select(
+      PlainSelect(
+        selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],
+        from: TableFromItem(name: "users"))))
+  #expect(TableNameFinder().find(in: insert) == ["archived_users", "users"])
+
+  let create = CreateTableStatement(
+    table: "orders",
+    columns: [
+      TableColumnDefinition(
+        name: "user_id", typeName: "INT",
+        constraints: [.references(table: "users", columns: ["id"])])
+    ])
+  #expect(TableNameFinder().find(in: create) == ["orders", "users"])
+}
+
+@Test
 func selectDeparserBuildsExpectedSql() {
   let select = PlainSelect(
     selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],

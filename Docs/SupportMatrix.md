@@ -78,6 +78,12 @@ The following syntax remains intentionally unsupported and reported via normaliz
 | Delimiter-aware splitting | Supported | ignores separators inside quoted strings and nested parentheses |
 | Unsupported recovery | Supported | `ParserOptions(recoverUnsupportedStatements: true)` returns `UnsupportedStatement` while preserving diagnostics |
 
+## Utilities
+
+| Feature | Status | Notes |
+|---|---|---|
+| Table name finder | Supported | `TableNameFinder` walks statements and returns referenced tables, excluding CTE aliases |
+
 ## Stability Notes
 
 - Public entry points (`parseStatement`, `parseStatements`, `parseScript`) are treated as stable.
