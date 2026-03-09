@@ -2,6 +2,22 @@
 
 SwiftSqlParser parses SQL into a Swift AST with configurable dialect behavior.
 
+## Install
+
+Add the package in Swift Package Manager:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/godsarmy/SwiftSqlParser.git", from: "1.0.0")
+]
+```
+
+Then add the product to your target dependencies:
+
+```swift
+.product(name: "SwiftSqlParser", package: "SwiftSqlParser")
+```
+
 ## Current Status
 
 - Core query support: `SELECT`, `WITH`/CTE, `VALUES`, set operations, joins, `GROUP BY`, `HAVING`, `QUALIFY`, window functions, `ORDER BY`, `LIMIT`, `OFFSET`

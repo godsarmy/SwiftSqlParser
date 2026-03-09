@@ -2,7 +2,23 @@
 
 ## Install
 
-Use Swift Package Manager and import:
+Add SwiftSqlParser with Swift Package Manager:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/godsarmy/SwiftSqlParser.git", from: "1.0.0")
+],
+targets: [
+    .target(
+        name: "YourTarget",
+        dependencies: [
+            .product(name: "SwiftSqlParser", package: "SwiftSqlParser")
+        ]
+    )
+]
+```
+
+Then import the module:
 
 ```swift
 import SwiftSqlParser
