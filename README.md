@@ -51,8 +51,6 @@ let expressionTables = TableNameFinder().find(in: BinaryExpression(
 
 ## Documentation
 
-- `Docs/SupportMatrix.md` - current SQL and dialect support
-- `Docs/VersioningAndCompatibility.md` - semantic versioning and stability policy
-- `Docs/PerformanceAndRobustness.md` - benchmark and optimization notes
-- `Docs/ReleasePlan.md` - release milestone status
+- `Docs/USAGE.md` - parser APIs, options, diagnostics, and examples
+- `Docs/ARCHITECTURE.md` - system design, parser pipeline, and extension workflow
 - `AGENTS.md` - repository guidance for coding agents
