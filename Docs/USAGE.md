@@ -52,6 +52,24 @@ let script = parseScript(
 )
 ```
 
+## CLI
+
+For local inspection, use the bundled CLI executable:
+
+```bash
+echo "SELECT * FROM users" | swift run SwiftSqlParserCLI
+echo "SELECT * FROM users" | swift run SwiftSqlParserCLI --json
+printf "SELECT * FROM users\nGO\nSELECT * FROM roles\n" | swift run SwiftSqlParserCLI --script
+```
+
+Behavior:
+
+- reads SQL from stdin
+- parses a single statement by default
+- uses `--script` to parse multi-statement input with script delimiters
+- emits a human-readable tree by default or pretty-printed JSON with `--json`
+- prints parse diagnostics to stderr and exits non-zero on failure
+
 ## Parse a Statement
 
 Parse SQL into typed Swift AST nodes and cast to the concrete statement you expect:

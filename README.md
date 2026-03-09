@@ -65,6 +65,21 @@ let expressionTables = TableNameFinder().find(in: BinaryExpression(
 - Run tests: `swift test`
 - Run benchmark: `swift run SwiftSqlParserBenchmark`
 
+## CLI
+
+The repository also ships a simple CLI for local inspection:
+
+```bash
+echo "SELECT * FROM users" | swift run SwiftSqlParserCLI
+echo "SELECT * FROM users" | swift run SwiftSqlParserCLI --json
+printf "SELECT * FROM users\nGO\nSELECT * FROM roles\n" | swift run SwiftSqlParserCLI --script
+```
+
+- reads SQL from stdin
+- dumps parsed structures in a human-readable tree by default
+- supports `--json` for machine-readable output
+- prints parse diagnostics to stderr and exits non-zero on failure
+
 ## Documentation
 
 - `Docs/USAGE.md` - parser APIs, options, diagnostics, and examples
