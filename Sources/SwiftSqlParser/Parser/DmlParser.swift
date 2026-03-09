@@ -424,7 +424,7 @@ struct DmlParser {
 
       if depth == 0 {
         for sequence in boundaryStarts where matchesKeywordSequence(sequence, at: current) {
-          let sql = tokens[start..<current].map(\.sqlText).joined(separator: " ")
+          let sql = renderSqlFragment(tokens[start..<current])
           index = current
           return sql
         }
@@ -434,7 +434,7 @@ struct DmlParser {
     }
 
     index = tokens.count
-    return tokens[start..<tokens.count].map(\.sqlText).joined(separator: " ")
+    return renderSqlFragment(tokens[start..<tokens.count])
   }
 
   private mutating func collectTrailingSqlUntilTopLevelKeywords(_ keywordSequences: [[String]])
@@ -454,7 +454,7 @@ struct DmlParser {
 
       if depth == 0 {
         for sequence in keywordSequences where matchesKeywordSequence(sequence, at: current) {
-          let sql = tokens[start..<current].map(\.sqlText).joined(separator: " ")
+          let sql = renderSqlFragment(tokens[start..<current])
           index = current
           return sql
         }
@@ -464,7 +464,37 @@ struct DmlParser {
     }
 
     index = tokens.count
-    return tokens[start..<tokens.count].map(\.sqlText).joined(separator: " ")
+    return renderSqlFragment(tokens[start..<tokens.count])
+  }
+
+  private func renderSqlFragment(_ fragment: ArraySlice<Token>) -> String {
+    var sql = ""
+
+    for token in fragment {
+      if sql.isEmpty == false, needsSpace(before: token, in: sql) {
+        sql += " "
+      }
+      sql += token.sqlText
+    }
+
+    return sql
+  }
+
+  private func needsSpace(before token: Token, in sql: String) -> Bool {
+    guard let last = sql.last else {
+      return false
+    }
+
+    if token.kind == .symbol {
+      return token.text != ","
+        && token.text != ")"
+        && token.text != "."
+        && last != "("
+        && last != "."
+    }
+
+    return last != "("
+      && last != "."
   }
 
   private func matchesKeywordSequence(_ sequence: [String], at start: Int) -> Bool {

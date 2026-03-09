@@ -113,9 +113,9 @@ Goal:
 
 ### Milestone 3: DML port wave
 
-- [ ] Port upstream-aligned `INSERT` / `UPDATE` / `DELETE` / `MERGE` / `REPLACE` cases
-- [ ] Separate dialect-gated cases cleanly in local tests
-- [ ] Add regression fixtures for high-value DML variants
+- [x] Port upstream-aligned `INSERT` / `UPDATE` / `DELETE` / `MERGE` / `REPLACE` cases
+- [x] Separate dialect-gated cases cleanly in local tests
+- [x] Add regression fixtures for high-value DML variants
 
 ### Milestone 4: DDL port wave
 
@@ -146,5 +146,5 @@ Goal:
 
 - [x] Upstream test families are inventoried in-repo
 - [x] Each family is classified by parity status
-- [ ] A first wave of upstream-aligned tests is ported and passing
-- [ ] Blocked upstream families are clearly separated from active port work
+- [x] A first wave of upstream-aligned tests is ported and passing
+- [x] Blocked upstream families are clearly separated from active port work
