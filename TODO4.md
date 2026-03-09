@@ -124,9 +124,9 @@ Goal:
 
 ### Milestone 5: Utility / deparser / finder wave
 
-- [ ] Port utility statement cases that map to local behavior
-- [ ] Expand deparser round-trip coverage
-- [ ] Expand `TableNameFinder` coverage using upstream-style cases
+- [x] Port utility statement cases that map to local behavior
+- [x] Expand deparser round-trip coverage
+- [x] Expand `TableNameFinder` coverage using upstream-style cases
 
 ### Milestone 6: Corpus expansion
 
