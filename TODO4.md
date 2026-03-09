@@ -2,6 +2,8 @@
 
 This file tracks how to port the upstream JSqlParser test suite from `src/test` into `SwiftSqlParser` in a staged way.
 
+Status: completed. The first staged upstream-aligned port wave now covers query/expression, DML, DDL, utility/deparser/finder, and curated corpus resources in local Swift tests.
+
 Goal:
 
 - reuse as much upstream SQL coverage as possible
@@ -148,3 +150,14 @@ Goal:
 - [x] Each family is classified by parity status
 - [x] A first wave of upstream-aligned tests is ported and passing
 - [x] Blocked upstream families are clearly separated from active port work
+
+## Completed Outputs
+
+- `Tests/SwiftSqlParserTests/UpstreamAlignedSelectExpressionTests.swift`
+- `Tests/SwiftSqlParserTests/UpstreamAlignedDmlTests.swift`
+- `Tests/SwiftSqlParserTests/UpstreamAlignedDdlTests.swift`
+- `Tests/SwiftSqlParserTests/UpstreamAlignedUtilityFinderTests.swift`
+- `Tests/SwiftSqlParserTests/Resources/Corpus/ddl.sql`
+- `Tests/SwiftSqlParserTests/Resources/Corpus/utility.sql`
+- `Tests/SwiftSqlParserTests/Resources/Corpus/script.sql`
+- `Tests/SwiftSqlParserTests/CorpusHarnessTests.swift`

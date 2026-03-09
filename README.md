@@ -13,6 +13,7 @@ SwiftSqlParser parses SQL into a Swift AST with configurable dialect behavior.
 - Default script separators include `;`, `GO`, `/`, and double-blank-line boundaries; `GO` and `/` are treated as delimiter lines
 - Non-throwing result APIs are available through `parseStatementResult(...)` and `parseStatementsResult(...)`
 - Ecosystem utilities include visitors/deparsers plus `TableNameFinder` for statements and expressions
+- The test suite includes upstream-aligned JSqlParser-derived coverage plus curated SQL corpora for supported syntax and recovery stress tests
 
 ## Quick Start
 
