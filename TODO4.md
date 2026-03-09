@@ -130,9 +130,9 @@ Goal:
 
 ### Milestone 6: Corpus expansion
 
-- [ ] Import curated upstream SQL resources for supported syntax only
-- [ ] Keep unsupported/dialect-specific cases separated and explicitly tracked
-- [ ] Use corpus files for recovery and batch parsing stress tests
+- [x] Import curated upstream SQL resources for supported syntax only
+- [x] Keep unsupported/dialect-specific cases separated and explicitly tracked
+- [x] Use corpus files for recovery and batch parsing stress tests
 
 ## Recommended Order
 
