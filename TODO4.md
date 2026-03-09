@@ -107,9 +107,9 @@ Goal:
 
 ### Milestone 2: Core query and expression ports
 
-- [ ] Port upstream-aligned tests for currently supported `SELECT` families
-- [ ] Port more expression/operator cases that map to local grammar
-- [ ] Fill any small missing parser/deparser gaps needed for those cases
+- [x] Port upstream-aligned tests for currently supported `SELECT` families
+- [x] Port more expression/operator cases that map to local grammar
+- [x] Fill any small missing parser/deparser gaps needed for those cases
 
 ### Milestone 3: DML port wave
 

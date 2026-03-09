@@ -672,7 +672,12 @@ struct SelectCoreParser {
       var args: [any Expression] = []
       if match(symbol: ")") == false {
         while true {
-          let argument = try parseExpression()
+          let argument: any Expression
+          if match(symbol: "*") {
+            argument = IdentifierExpression(name: "*")
+          } else {
+            argument = try parseExpression()
+          }
           args.append(argument)
           if match(symbol: ",") {
             continue

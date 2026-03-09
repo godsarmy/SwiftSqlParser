@@ -695,7 +695,11 @@ struct DmlParser {
       var args: [any Expression] = []
       if match(symbol: ")") == false {
         while true {
-          args.append(try parseExpression())
+          if match(symbol: "*") {
+            args.append(IdentifierExpression(name: "*"))
+          } else {
+            args.append(try parseExpression())
+          }
           if match(symbol: ",") {
             continue
           }
