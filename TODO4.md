@@ -119,8 +119,8 @@ Goal:
 
 ### Milestone 4: DDL port wave
 
-- [ ] Port upstream-aligned `CREATE` / `ALTER` / `DROP` / `TRUNCATE` cases
-- [ ] Expand local DDL assertions where upstream cases expose gaps
+- [x] Port upstream-aligned `CREATE` / `ALTER` / `DROP` / `TRUNCATE` cases
+- [x] Expand local DDL assertions where upstream cases expose gaps
 
 ### Milestone 5: Utility / deparser / finder wave
 
