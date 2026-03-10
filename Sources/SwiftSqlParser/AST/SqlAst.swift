@@ -53,9 +53,15 @@ public struct OrderByElement: Sendable, Equatable {
 }
 
 public struct PlainSelect: Statement, Sendable, Equatable {
+  public enum SelectQualifier: Sendable, Equatable {
+    case asStruct
+    case asValue
+  }
+
   public var distinctOnExpressions: [any Expression]
   public var top: Int?
   public var isDistinct: Bool
+  public var selectQualifier: SelectQualifier?
   public var selectItems: [any SelectItem]
   public var from: any FromItem
   public var joins: [Join]
@@ -71,6 +77,7 @@ public struct PlainSelect: Statement, Sendable, Equatable {
     distinctOnExpressions: [any Expression] = [],
     top: Int? = nil,
     isDistinct: Bool = false,
+    selectQualifier: SelectQualifier? = nil,
     selectItems: [any SelectItem],
     from: any FromItem,
     joins: [Join] = [],
@@ -85,6 +92,7 @@ public struct PlainSelect: Statement, Sendable, Equatable {
     self.distinctOnExpressions = distinctOnExpressions
     self.top = top
     self.isDistinct = isDistinct
+    self.selectQualifier = selectQualifier
     self.selectItems = selectItems
     self.from = from
     self.joins = joins
@@ -101,6 +109,7 @@ public struct PlainSelect: Statement, Sendable, Equatable {
     lhs.distinctOnExpressions.count == rhs.distinctOnExpressions.count
       && lhs.top == rhs.top
       && lhs.isDistinct == rhs.isDistinct
+      && lhs.selectQualifier == rhs.selectQualifier
       && lhs.selectItems.count == rhs.selectItems.count
       && lhs.joins == rhs.joins
       && lhs.whereExpression == nil && rhs.whereExpression == nil
@@ -906,15 +915,22 @@ public struct CastExpression: Expression, Sendable, Equatable {
   public let expression: any Expression
   public let typeName: String
   public let style: Style
+  public let format: String?
 
-  public init(expression: any Expression, typeName: String, style: Style = .standard) {
+  public init(
+    expression: any Expression,
+    typeName: String,
+    style: Style = .standard,
+    format: String? = nil
+  ) {
     self.expression = expression
     self.typeName = typeName
     self.style = style
+    self.format = format
   }
 
   public static func == (lhs: CastExpression, rhs: CastExpression) -> Bool {
-    lhs.typeName == rhs.typeName && lhs.style == rhs.style
+    lhs.typeName == rhs.typeName && lhs.style == rhs.style && lhs.format == rhs.format
   }
 }
 
@@ -979,7 +995,29 @@ public struct SubqueryExpression: Expression, Sendable, Equatable {
 }
 
 public struct AllColumnsSelectItem: SelectItem, Sendable, Equatable {
-  public init() {}
+  public struct Replacement: Sendable, Equatable {
+    public let expression: any Expression
+    public let alias: String
+
+    public init(expression: any Expression, alias: String) {
+      self.expression = expression
+      self.alias = alias
+    }
+
+    public static func == (lhs: Replacement, rhs: Replacement) -> Bool {
+      lhs.alias == rhs.alias
+        && String(describing: type(of: lhs.expression))
+          == String(describing: type(of: rhs.expression))
+    }
+  }
+
+  public let exceptColumns: [String]
+  public let replacements: [Replacement]
+
+  public init(exceptColumns: [String] = [], replacements: [Replacement] = []) {
+    self.exceptColumns = exceptColumns
+    self.replacements = replacements
+  }
 }
 
 public struct ExpressionSelectItem: SelectItem, Sendable, Equatable {
@@ -998,12 +1036,22 @@ public struct ExpressionSelectItem: SelectItem, Sendable, Equatable {
 
 public struct TableFromItem: FromItem, Sendable, Equatable {
   public let name: String
+  public let timeTravelClause: String?
   public let alias: String?
+  public let timeTravelClauseAfterAlias: String?
   public let isLateral: Bool
 
-  public init(name: String, alias: String? = nil, isLateral: Bool = false) {
+  public init(
+    name: String,
+    timeTravelClause: String? = nil,
+    alias: String? = nil,
+    timeTravelClauseAfterAlias: String? = nil,
+    isLateral: Bool = false
+  ) {
     self.name = name
+    self.timeTravelClause = timeTravelClause
     self.alias = alias
+    self.timeTravelClauseAfterAlias = timeTravelClauseAfterAlias
     self.isLateral = isLateral
   }
 }

@@ -144,3 +144,69 @@ func pivotSyntaxRequiresFeature() {
       options: options)
   }
 }
+
+@Test
+func bigQuerySelectQualifierAndStarTransformersParse() throws {
+  let options = ParserOptions(
+    dialectFeatures: [.bigQuery],
+    experimentalFeatures: [.quotedIdentifiers]
+  )
+  let parsed = try parseStatement(
+    "SELECT AS STRUCT * EXCEPT (internal_id) REPLACE (name AS name) FROM `project.dataset.users`",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let allColumns = select.selectItems.first as? AllColumnsSelectItem
+  else {
+    Issue.record("Expected PlainSelect with AllColumnsSelectItem")
+    return
+  }
+
+  #expect(select.selectQualifier == .asStruct)
+  #expect(allColumns.exceptColumns == ["internal_id"])
+  #expect(allColumns.replacements.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT AS STRUCT * EXCEPT (internal_id) REPLACE (name AS name) FROM project.dataset.users"
+  )
+}
+
+@Test
+func bigQueryCastFormatParsesWhenEnabled() throws {
+  let options = ParserOptions(dialectFeatures: [.bigQuery])
+  let parsed = try parseStatement(
+    "SELECT CAST(created_at AS STRING FORMAT 'YYYY-MM-DD') FROM users",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let cast = (select.selectItems.first as? ExpressionSelectItem)?.expression as? CastExpression
+  else {
+    Issue.record("Expected CAST expression")
+    return
+  }
+
+  #expect(cast.typeName == "STRING")
+  #expect(cast.format == "YYYY-MM-DD")
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT CAST(created_at AS STRING FORMAT 'YYYY-MM-DD') FROM users")
+}
+
+@Test
+func snowflakeTimeTravelClauseParsesWhenEnabled() throws {
+  let options = ParserOptions(dialectFeatures: [.snowflake])
+  let parsed = try parseStatement("SELECT id FROM users t AT ('2024-01-01')", options: options)
+
+  guard let select = parsed as? PlainSelect,
+    let table = select.from as? TableFromItem
+  else {
+    Issue.record("Expected table from item")
+    return
+  }
+
+  #expect(table.alias == "t")
+  #expect(table.timeTravelClauseAfterAlias == "AT ('2024-01-01')")
+  #expect(StatementDeparser().deparse(select) == "SELECT id FROM users t AT ('2024-01-01')")
+}

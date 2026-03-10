@@ -21,6 +21,14 @@ public struct SelectDeparser {
     if let top = statement.top {
       modifiers.append("TOP \(top)")
     }
+    if let selectQualifier = statement.selectQualifier {
+      switch selectQualifier {
+      case .asStruct:
+        modifiers.append("AS STRUCT")
+      case .asValue:
+        modifiers.append("AS VALUE")
+      }
+    }
 
     let modifierSql = modifiers.isEmpty ? "" : "\(modifiers.joined(separator: " ")) "
     var query = "SELECT \(modifierSql)\(selectItems)"
@@ -109,7 +117,20 @@ public struct SelectDeparser {
 
   func deparseSelectItem(_ item: any SelectItem) -> String {
     if item is AllColumnsSelectItem {
-      return "*"
+      guard let allColumns = item as? AllColumnsSelectItem else {
+        return "*"
+      }
+      var sql = "*"
+      if allColumns.exceptColumns.isEmpty == false {
+        sql += " EXCEPT (\(allColumns.exceptColumns.joined(separator: ", ")))"
+      }
+      if allColumns.replacements.isEmpty == false {
+        let replacements = allColumns.replacements.map { replacement in
+          "\(expressionDeparser.deparse(replacement.expression)) AS \(replacement.alias)"
+        }.joined(separator: ", ")
+        sql += " REPLACE (\(replacements))"
+      }
+      return sql
     }
 
     if let expressionItem = item as? ExpressionSelectItem {
@@ -126,10 +147,12 @@ public struct SelectDeparser {
   func deparseFromItem(_ item: any FromItem) -> String {
     if let table = item as? TableFromItem {
       let lateral = table.isLateral ? "LATERAL " : ""
+      let timeTravelClause = table.timeTravelClause.map { " \($0)" } ?? ""
+      let timeTravelClauseAfterAlias = table.timeTravelClauseAfterAlias.map { " \($0)" } ?? ""
       if let alias = table.alias {
-        return "\(lateral)\(table.name) \(alias)"
+        return "\(lateral)\(table.name)\(timeTravelClause) \(alias)\(timeTravelClauseAfterAlias)"
       }
-      return "\(lateral)\(table.name)"
+      return "\(lateral)\(table.name)\(timeTravelClause)"
     }
 
     if let subquery = item as? SubqueryFromItem {

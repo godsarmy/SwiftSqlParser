@@ -116,6 +116,7 @@ struct SelectCoreParser {
     let top = try parseTopClauseIfPresent()
     let isDistinct = matchKeyword("DISTINCT")
     let distinctOnExpressions = try parseDistinctOnClauseIfPresent(isDistinct: isDistinct)
+    let selectQualifier = try parseBigQuerySelectQualifierIfPresent()
     let selectItems = try parseSelectItems()
     try consumeKeyword("FROM")
     let from = try parseFromItem()
@@ -132,6 +133,7 @@ struct SelectCoreParser {
       distinctOnExpressions: distinctOnExpressions,
       top: top,
       isDistinct: isDistinct,
+      selectQualifier: selectQualifier,
       selectItems: selectItems,
       from: from,
       joins: joins,
@@ -187,7 +189,7 @@ struct SelectCoreParser {
 
     while true {
       if match(symbol: "*") {
-        items.append(AllColumnsSelectItem())
+        items.append(try parseAllColumnsSelectItem())
       } else {
         let expression = try parseExpression()
         let alias = try parseAliasIfPresent()
@@ -208,6 +210,45 @@ struct SelectCoreParser {
     return items
   }
 
+  private mutating func parseAllColumnsSelectItem() throws -> AllColumnsSelectItem {
+    var exceptColumns: [String] = []
+    var replacements: [AllColumnsSelectItem.Replacement] = []
+
+    while true {
+      if matchKeyword("EXCEPT") {
+        guard options.dialectFeatures.contains(.bigQuery) else {
+          throw SelectParseFailure.expected("EXCEPT in SELECT * requires BigQuery dialect")
+        }
+        try consumeSymbol("(")
+        exceptColumns = try parseIdentifierListUntilRightParen()
+        continue
+      }
+
+      if matchKeyword("REPLACE") {
+        guard options.dialectFeatures.contains(.bigQuery) else {
+          throw SelectParseFailure.expected("REPLACE in SELECT * requires BigQuery dialect")
+        }
+        try consumeSymbol("(")
+        while true {
+          let expression = try parseExpression()
+          try consumeKeyword("AS")
+          let alias = try consumeIdentifier()
+          replacements.append(.init(expression: expression, alias: alias))
+          if match(symbol: ",") {
+            continue
+          }
+          try consumeSymbol(")")
+          break
+        }
+        continue
+      }
+
+      break
+    }
+
+    return AllColumnsSelectItem(exceptColumns: exceptColumns, replacements: replacements)
+  }
+
   private mutating func parseAliasIfPresent() throws -> String? {
     if matchKeyword("AS") {
       return try consumeIdentifier()
@@ -221,7 +262,7 @@ struct SelectCoreParser {
       "FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON", "USING", "APPLY",
       "PIVOT", "UNPIVOT",
       "UNION", "INTERSECT", "EXCEPT", "ALL", "GROUP", "HAVING", "QUALIFY", "ORDER", "LIMIT",
-      "OFFSET",
+      "OFFSET", "AT", "BEFORE", "CHANGES", "FOR",
     ]
     if keywordBoundary.contains(next.uppercased) {
       return nil
@@ -244,8 +285,16 @@ struct SelectCoreParser {
       fromItem = SubqueryFromItem(statement: nestedStatement, alias: alias, isLateral: isLateral)
     } else {
       let tableName = try consumeIdentifier()
+      let timeTravelClause = try parseTimeTravelClauseIfPresent()
       let alias = try parseAliasIfPresent()
-      fromItem = TableFromItem(name: tableName, alias: alias, isLateral: isLateral)
+      let timeTravelClauseAfterAlias = try parseTimeTravelClauseIfPresent()
+      fromItem = TableFromItem(
+        name: tableName,
+        timeTravelClause: timeTravelClause,
+        alias: alias,
+        timeTravelClauseAfterAlias: timeTravelClauseAfterAlias,
+        isLateral: isLateral
+      )
     }
 
     return try parsePivotOrUnpivotIfPresent(source: fromItem)
@@ -786,8 +835,20 @@ struct SelectCoreParser {
     let expression = try parseExpression()
     try consumeKeyword("AS")
     let typeName = try parseTypeName()
+    let format: String?
+    if matchKeyword("FORMAT") {
+      guard options.dialectFeatures.contains(.bigQuery) else {
+        throw SelectParseFailure.expected("FORMAT in CAST requires BigQuery dialect")
+      }
+      guard let formatLiteral = consumeStringIfPresent() else {
+        throw SelectParseFailure.expected("format string")
+      }
+      format = formatLiteral
+    } else {
+      format = nil
+    }
     try consumeSymbol(")")
-    return CastExpression(expression: expression, typeName: typeName)
+    return CastExpression(expression: expression, typeName: typeName, format: format)
   }
 
   private mutating func parseTypeName() throws -> String {
@@ -808,6 +869,125 @@ struct SelectCoreParser {
     }
 
     return typeName
+  }
+
+  private mutating func parseBigQuerySelectQualifierIfPresent() throws -> PlainSelect
+    .SelectQualifier?
+  {
+    guard matchKeyword("AS") else {
+      return nil
+    }
+    guard options.dialectFeatures.contains(.bigQuery) else {
+      throw SelectParseFailure.expected("AS STRUCT/AS VALUE requires BigQuery dialect")
+    }
+    if matchKeyword("STRUCT") {
+      return .asStruct
+    }
+    if matchKeyword("VALUE") {
+      return .asValue
+    }
+    throw SelectParseFailure.expected("STRUCT or VALUE")
+  }
+
+  private mutating func parseTimeTravelClauseIfPresent() throws -> String? {
+    if checkKeyword("FOR") {
+      guard options.dialectFeatures.contains(.bigQuery) else {
+        throw SelectParseFailure.expected("FOR SYSTEM_TIME AS OF requires BigQuery dialect")
+      }
+      try consumeKeyword("FOR")
+      try consumeKeyword("SYSTEM_TIME")
+      try consumeKeyword("AS")
+      try consumeKeyword("OF")
+      let clause = collectClauseTextUntilBoundary()
+      guard clause.isEmpty == false else {
+        throw SelectParseFailure.expected("system time expression")
+      }
+      return "FOR SYSTEM_TIME AS OF \(clause)"
+    }
+
+    if checkKeyword("AT") || checkKeyword("BEFORE") || checkKeyword("CHANGES") {
+      guard options.dialectFeatures.contains(.snowflake) else {
+        throw SelectParseFailure.expected("time travel clause requires Snowflake dialect")
+      }
+      let keyword = try consumeIdentifier().uppercased()
+      let clause = collectClauseTextUntilBoundary()
+      if clause.isEmpty {
+        return keyword
+      }
+      return "\(keyword) \(clause)"
+    }
+
+    return nil
+  }
+
+  private mutating func collectClauseTextUntilBoundary() -> String {
+    var collected: [Token] = []
+    var nesting = 0
+
+    while let token = peek() {
+      if token.kind == .symbol {
+        if token.text == "(" {
+          nesting += 1
+        } else if token.text == ")" {
+          if nesting == 0 {
+            break
+          }
+          nesting -= 1
+        }
+      }
+
+      if nesting == 0, token.kind == .identifier,
+        [
+          "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON", "USING", "APPLY", "WHERE",
+          "GROUP", "HAVING", "QUALIFY", "ORDER", "LIMIT", "OFFSET", "UNION", "INTERSECT", "EXCEPT",
+        ].contains(token.uppercased)
+      {
+        break
+      }
+
+      collected.append(token)
+      _ = advance()
+    }
+
+    return SelectCoreParser.renderTokens(collected)
+  }
+
+  private static func renderTokens(_ tokens: [Token]) -> String {
+    guard tokens.isEmpty == false else {
+      return ""
+    }
+
+    var result = ""
+    var previous: Token?
+
+    for token in tokens {
+      let text: String
+      if token.kind == .string {
+        let escaped = token.text.replacingOccurrences(of: "'", with: "''")
+        text = "'\(escaped)'"
+      } else {
+        text = token.text
+      }
+
+      let needsSpace: Bool
+      if result.isEmpty {
+        needsSpace = false
+      } else if token.kind == .symbol {
+        needsSpace = token.text == "("
+      } else if previous?.kind == .symbol {
+        needsSpace = previous?.text != "(" && previous?.text != "."
+      } else {
+        needsSpace = true
+      }
+
+      if needsSpace {
+        result.append(" ")
+      }
+      result.append(text)
+      previous = token
+    }
+
+    return result
   }
 
   private mutating func ensureAtEnd() throws {
@@ -1088,7 +1268,7 @@ private struct Tokenizer {
         }
       }
 
-      if [",", "*", "(", ")", "=", "+", "-", "/", ".", "<", ">"].contains(character) {
+      if [",", "*", "(", ")", "=", "+", "-", "/", ".", "<", ">", ":"].contains(character) {
         tokens.append(Token(text: String(character), kind: .symbol))
         index = nextIndex
         continue

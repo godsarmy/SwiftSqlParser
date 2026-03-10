@@ -108,7 +108,13 @@ public struct ExpressionDeparser {
     if let cast = expression as? CastExpression {
       switch cast.style {
       case .standard:
-        return "CAST(\(deparse(cast.expression)) AS \(cast.typeName))"
+        var sql = "CAST(\(deparse(cast.expression)) AS \(cast.typeName)"
+        if let format = cast.format {
+          let escapedFormat = format.replacingOccurrences(of: "'", with: "''")
+          sql += " FORMAT '\(escapedFormat)'"
+        }
+        sql += ")"
+        return sql
       case .postgres:
         return "\(deparse(cast.expression))::\(cast.typeName)"
       }
