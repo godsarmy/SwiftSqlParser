@@ -18,7 +18,7 @@ Then add the product to your target dependencies:
 .product(name: "SwiftSqlParser", package: "SwiftSqlParser")
 ```
 
-## Current Status
+## Features
 
 - Core query support: `SELECT`, `WITH`/CTE, `VALUES`, set operations, joins, `GROUP BY`, `HAVING`, `QUALIFY`, window functions, `ORDER BY`, `LIMIT`, `OFFSET`
 - DML support: `INSERT`, `UPDATE`, `DELETE`, dialect-gated `MERGE`, MySQL `REPLACE`, `RETURNING`, `ON CONFLICT`, `ON DUPLICATE KEY UPDATE`
