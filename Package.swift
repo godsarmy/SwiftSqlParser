@@ -21,6 +21,9 @@ let package = Package(
       targets: ["SwiftSqlParserBenchmark"]
     ),
   ],
+  dependencies: [
+    .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.6.0"),
+  ],
   targets: [
     .target(
       name: "SwiftSqlParser"
@@ -35,7 +38,10 @@ let package = Package(
     ),
     .testTarget(
       name: "SwiftSqlParserTests",
-      dependencies: ["SwiftSqlParser"],
+      dependencies: [
+        "SwiftSqlParser",
+        .product(name: "Testing", package: "swift-testing"),
+      ],
       resources: [
         .process("Resources")
       ]
