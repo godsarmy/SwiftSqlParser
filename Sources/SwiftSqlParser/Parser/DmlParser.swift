@@ -644,6 +644,16 @@ struct DmlParser {
         expression = try parseInListExpression(expression: expression, isNegated: true)
       } else if matchKeyword("IN") {
         expression = try parseInListExpression(expression: expression)
+      } else if matchKeyword("INCLUDES") {
+        expression = try parseSoqlIncludesExcludesExpression(
+          expression: expression,
+          operator: .includes
+        )
+      } else if matchKeyword("EXCLUDES") {
+        expression = try parseSoqlIncludesExcludesExpression(
+          expression: expression,
+          operator: .excludes
+        )
       } else if matchKeyword("NOT") && matchKeyword("BETWEEN") {
         expression = try parseBetweenExpression(expression: expression, isNegated: true)
       } else if matchKeyword("BETWEEN") {
@@ -808,6 +818,29 @@ struct DmlParser {
     let upperBound = try parseAdditiveExpression()
     return BetweenExpression(
       expression: expression, lowerBound: lowerBound, upperBound: upperBound, isNegated: isNegated)
+  }
+
+  private mutating func parseSoqlIncludesExcludesExpression(
+    expression: any Expression,
+    operator: SoqlIncludesExcludesExpression.Operator
+  ) throws -> any Expression {
+    guard options.dialectFeatures.contains(.salesforceSoql) else {
+      throw DmlParseFailure.expected("INCLUDES/EXCLUDES requires Salesforce SOQL dialect")
+    }
+    try consumeSymbol("(")
+    var values: [any Expression] = []
+    if match(symbol: ")") == false {
+      while true {
+        values.append(try parseExpression())
+        if match(symbol: ",") {
+          continue
+        }
+        try consumeSymbol(")")
+        break
+      }
+    }
+    return SoqlIncludesExcludesExpression(
+      expression: expression, values: values, operator: `operator`)
   }
 
   private mutating func parseCaseExpression() throws -> any Expression {

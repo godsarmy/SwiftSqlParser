@@ -70,6 +70,16 @@ public struct ExpressionDeparser {
       return "\(deparse(inList.expression)) \(keyword) (\(values))"
     }
 
+    if let includesExcludes = expression as? SoqlIncludesExcludesExpression {
+      let values = includesExcludes.values.map(deparse).joined(separator: ", ")
+      let keyword =
+        switch includesExcludes.operator {
+        case .includes: "INCLUDES"
+        case .excludes: "EXCLUDES"
+        }
+      return "\(deparse(includesExcludes.expression)) \(keyword) (\(values))"
+    }
+
     if let between = expression as? BetweenExpression {
       let keyword = between.isNegated ? "NOT BETWEEN" : "BETWEEN"
       return

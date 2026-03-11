@@ -62,6 +62,7 @@ public protocol ExpressionVisitor {
   mutating func visit(binaryExpression: BinaryExpression)
   mutating func visit(isNullExpression: IsNullExpression)
   mutating func visit(inListExpression: InListExpression)
+  mutating func visit(soqlIncludesExcludesExpression: SoqlIncludesExcludesExpression)
   mutating func visit(betweenExpression: BetweenExpression)
   mutating func visit(existsExpression: ExistsExpression)
   mutating func visit(functionExpression: FunctionExpression)
@@ -81,6 +82,7 @@ extension ExpressionVisitor {
   public mutating func visit(binaryExpression: BinaryExpression) {}
   public mutating func visit(isNullExpression: IsNullExpression) {}
   public mutating func visit(inListExpression: InListExpression) {}
+  public mutating func visit(soqlIncludesExcludesExpression: SoqlIncludesExcludesExpression) {}
   public mutating func visit(betweenExpression: BetweenExpression) {}
   public mutating func visit(existsExpression: ExistsExpression) {}
   public mutating func visit(functionExpression: FunctionExpression) {}
@@ -281,6 +283,11 @@ public enum AstVisit {
 
     if let inList = expression as? InListExpression {
       visitor.visit(inListExpression: inList)
+      return
+    }
+
+    if let includesExcludes = expression as? SoqlIncludesExcludesExpression {
+      visitor.visit(soqlIncludesExcludesExpression: includesExcludes)
       return
     }
 

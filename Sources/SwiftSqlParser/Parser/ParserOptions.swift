@@ -22,6 +22,7 @@ public enum DialectFeature: String, Sendable, Hashable {
   case hsqldb
   case derby
   case sqlite
+  case salesforceSoql
 }
 
 public enum ExperimentalFeature: String, Sendable, Hashable {

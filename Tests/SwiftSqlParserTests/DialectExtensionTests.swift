@@ -210,3 +210,42 @@ func snowflakeTimeTravelClauseParsesWhenEnabled() throws {
   #expect(table.timeTravelClauseAfterAlias == "AT ('2024-01-01')")
   #expect(StatementDeparser().deparse(select) == "SELECT id FROM users t AT ('2024-01-01')")
 }
+
+@Test
+func soqlIncludesExcludesParsesWhenDialectEnabled() throws {
+  let options = ParserOptions(dialectFeatures: [.salesforceSoql])
+  let parsed = try parseStatement(
+    "SELECT id FROM accounts WHERE industries INCLUDES ('Banking', 'Finance') AND industries EXCLUDES ('Gaming')",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let andExpression = select.whereExpression as? BinaryExpression,
+    let left = andExpression.left as? SoqlIncludesExcludesExpression,
+    let right = andExpression.right as? SoqlIncludesExcludesExpression
+  else {
+    Issue.record("Expected SOQL INCLUDES/EXCLUDES expression tree")
+    return
+  }
+
+  #expect(andExpression.operator == .and)
+  #expect(left.operator == .includes)
+  #expect(left.values.count == 2)
+  #expect(right.operator == .excludes)
+  #expect(right.values.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM accounts WHERE industries INCLUDES ('Banking', 'Finance') AND industries EXCLUDES ('Gaming')"
+  )
+}
+
+@Test
+func soqlIncludesExcludesRequireDialectFlag() {
+  #expect(throws: SqlParseError.self) {
+    _ = try parseStatement("SELECT id FROM accounts WHERE industries INCLUDES ('Banking')")
+  }
+
+  #expect(throws: SqlParseError.self) {
+    _ = try parseStatement("SELECT id FROM accounts WHERE industries EXCLUDES ('Gaming')")
+  }
+}

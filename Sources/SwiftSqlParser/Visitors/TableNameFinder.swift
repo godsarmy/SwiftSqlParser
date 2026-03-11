@@ -242,6 +242,9 @@ private struct Collector {
     case let inList as InListExpression:
       visit(expression: inList.expression)
       inList.values.forEach { visit(expression: $0) }
+    case let includesExcludes as SoqlIncludesExcludesExpression:
+      visit(expression: includesExcludes.expression)
+      includesExcludes.values.forEach { visit(expression: $0) }
     case let between as BetweenExpression:
       visit(expression: between.expression)
       visit(expression: between.lowerBound)

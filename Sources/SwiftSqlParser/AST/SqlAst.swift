@@ -932,6 +932,29 @@ public struct InListExpression: Expression, Sendable, Equatable {
   }
 }
 
+public struct SoqlIncludesExcludesExpression: Expression, Sendable, Equatable {
+  public enum Operator: String, Sendable, Equatable {
+    case includes
+    case excludes
+  }
+
+  public let expression: any Expression
+  public let values: [any Expression]
+  public let `operator`: Operator
+
+  public init(expression: any Expression, values: [any Expression], operator: Operator) {
+    self.expression = expression
+    self.values = values
+    self.operator = `operator`
+  }
+
+  public static func == (lhs: SoqlIncludesExcludesExpression, rhs: SoqlIncludesExcludesExpression)
+    -> Bool
+  {
+    lhs.operator == rhs.operator && lhs.values.count == rhs.values.count
+  }
+}
+
 public struct BetweenExpression: Expression, Sendable, Equatable {
   public let expression: any Expression
   public let lowerBound: any Expression
