@@ -34,6 +34,7 @@ public enum ExperimentalFeature: String, Sendable, Hashable {
   case mergeStatements
   case replaceStatements
   case pivotSyntax
+  case pipedSql
 }
 
 public struct ParserOptions: Sendable, Equatable {

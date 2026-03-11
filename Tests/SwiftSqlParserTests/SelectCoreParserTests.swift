@@ -151,3 +151,58 @@ func selectParserBuildsAdvancedExpressionNodes() throws {
   #expect(expressionItems[1].expression is CastExpression)
   #expect(expressionItems[2].expression is CastExpression)
 }
+
+@Test
+func pipedFromSqlParsesWhenFeatureEnabled() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> WHERE active = 1 |> SELECT id, name |> ORDER BY id DESC |> LIMIT 5 OFFSET 2",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 2)
+  #expect(select.whereExpression != nil)
+  #expect(select.orderBy.count == 1)
+  #expect(select.orderBy.first?.direction == .descending)
+  #expect(select.limit == 5)
+  #expect(select.offset == 2)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id, name FROM users WHERE active = 1 ORDER BY id DESC LIMIT 5 OFFSET 2"
+  )
+}
+
+@Test
+func pipedFromSqlRequiresFeatureFlag() {
+  #expect(throws: SqlParseError.self) {
+    _ = try parseStatement("FROM users |> WHERE active = 1 |> SELECT id")
+  }
+}
+
+@Test
+func pipedFromSqlSupportsJoinAndAggregateOperators() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users u |> JOIN roles r ON u.role_id = r.id |> AGGREGATE r.name, COUNT(*) AS total GROUP BY r.name |> ORDER BY total DESC",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.joins.count == 1)
+  #expect(select.groupByExpressions.count == 1)
+  #expect(select.selectItems.count == 2)
+  #expect(select.orderBy.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT r.name, COUNT(*) AS total FROM users u INNER JOIN roles r ON u.role_id = r.id GROUP BY r.name ORDER BY total DESC"
+  )
+}

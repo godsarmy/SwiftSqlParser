@@ -147,7 +147,8 @@ public struct SqlParser: Sendable {
     }
 
     if uppercased.hasPrefix("SELECT ") || uppercased.hasPrefix("WITH ")
-      || uppercased.hasPrefix("VALUES ") || uppercased.hasPrefix("(")
+      || uppercased.hasPrefix("VALUES ") || uppercased.hasPrefix("FROM ")
+      || uppercased.hasPrefix("(")
     {
       do {
         var selectParser = try SelectCoreParser(sql: cleaned, options: options)

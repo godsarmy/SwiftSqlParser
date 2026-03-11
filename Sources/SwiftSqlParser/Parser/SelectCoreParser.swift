@@ -85,7 +85,168 @@ struct SelectCoreParser {
       return try parseValuesSelect()
     }
 
+    if checkKeyword("FROM") {
+      return try parsePipedFromStatement()
+    }
+
     return try parsePlainSelect()
+  }
+
+  private mutating func parsePipedFromStatement() throws -> PlainSelect {
+    guard options.experimentalFeatures.contains(.pipedSql) else {
+      throw SelectParseFailure.expected("Piped SQL requires experimental pipedSql feature")
+    }
+
+    try consumeKeyword("FROM")
+    let from = try parseFromItem()
+    var joins = try parseJoins()
+
+    var selectItems: [any SelectItem] = [AllColumnsSelectItem()]
+    var whereExpression: (any Expression)?
+    var groupByExpressions: [any Expression] = []
+    var orderBy: [OrderByElement] = []
+    var limit: Int?
+    var offset: Int?
+
+    while match(symbol: "|>") {
+      if matchKeyword("WHERE") {
+        whereExpression = try parseExpression()
+        continue
+      }
+
+      if matchKeyword("SELECT") {
+        selectItems = try parseSelectItems()
+        continue
+      }
+
+      if matchKeyword("ORDER") {
+        try consumeKeyword("BY")
+        orderBy = try parseOrderByElements()
+        continue
+      }
+
+      if matchKeyword("LIMIT") {
+        limit = try consumeIntegerLiteral()
+        if matchKeyword("OFFSET") {
+          offset = try consumeIntegerLiteral()
+        }
+        continue
+      }
+
+      if isPipeJoinStart() {
+        joins.append(try parseSingleJoin())
+        continue
+      }
+
+      if matchKeyword("AGGREGATE") {
+        selectItems = try parseSelectItems()
+        if matchKeyword("GROUP") {
+          try consumeKeyword("BY")
+          groupByExpressions = try parseExpressionList()
+        } else {
+          groupByExpressions = []
+        }
+        continue
+      }
+
+      throw SelectParseFailure.expected(
+        "supported pipe operator (WHERE, SELECT, ORDER BY, LIMIT, JOIN, AGGREGATE)")
+    }
+
+    return PlainSelect(
+      selectItems: selectItems,
+      from: from,
+      joins: joins,
+      whereExpression: whereExpression,
+      groupByExpressions: groupByExpressions,
+      orderBy: orderBy,
+      limit: limit,
+      offset: offset
+    )
+  }
+
+  private func isPipeJoinStart() -> Bool {
+    checkKeyword("JOIN") || checkKeyword("INNER") || checkKeyword("LEFT") || checkKeyword("RIGHT")
+      || checkKeyword("FULL") || checkKeyword("CROSS") || checkKeyword("OUTER")
+      || checkKeyword("NATURAL")
+  }
+
+  private mutating func parseSingleJoin() throws -> Join {
+    let joinType: Join.JoinType
+    let isNatural: Bool
+    if matchKeyword("INNER") {
+      try consumeKeyword("JOIN")
+      joinType = .inner
+      isNatural = false
+    } else if matchKeyword("LEFT") {
+      try consumeKeyword("JOIN")
+      joinType = .left
+      isNatural = false
+    } else if matchKeyword("RIGHT") {
+      try consumeKeyword("JOIN")
+      joinType = .right
+      isNatural = false
+    } else if matchKeyword("FULL") {
+      try consumeKeyword("JOIN")
+      joinType = .full
+      isNatural = false
+    } else if matchKeyword("CROSS") {
+      if matchKeyword("APPLY") {
+        joinType = .crossApply
+      } else {
+        try consumeKeyword("JOIN")
+        joinType = .cross
+      }
+      isNatural = false
+    } else if matchKeyword("OUTER") {
+      try consumeKeyword("APPLY")
+      joinType = .outerApply
+      isNatural = false
+    } else if matchKeyword("NATURAL") {
+      isNatural = true
+      if matchKeyword("LEFT") {
+        try consumeKeyword("JOIN")
+        joinType = .left
+      } else if matchKeyword("RIGHT") {
+        try consumeKeyword("JOIN")
+        joinType = .right
+      } else if matchKeyword("FULL") {
+        try consumeKeyword("JOIN")
+        joinType = .full
+      } else {
+        try consumeKeyword("JOIN")
+        joinType = .inner
+      }
+    } else {
+      try consumeKeyword("JOIN")
+      joinType = .inner
+      isNatural = false
+    }
+
+    let fromItem = try parseFromItem()
+    let onExpression: (any Expression)?
+    let usingColumns: [String]
+    if joinType != .cross && joinType != .crossApply && joinType != .outerApply
+      && matchKeyword("ON")
+    {
+      onExpression = try parseExpression()
+      usingColumns = []
+    } else if joinType != .crossApply && joinType != .outerApply && matchKeyword("USING") {
+      try consumeSymbol("(")
+      usingColumns = try parseIdentifierListUntilRightParen()
+      onExpression = nil
+    } else {
+      onExpression = nil
+      usingColumns = []
+    }
+
+    return Join(
+      type: joinType,
+      isNatural: isNatural,
+      fromItem: fromItem,
+      onExpression: onExpression,
+      usingColumns: usingColumns
+    )
   }
 
   private mutating func parseValuesSelect() throws -> ValuesSelect {
@@ -515,6 +676,18 @@ struct SelectCoreParser {
     }
 
     return elements
+  }
+
+  private mutating func parseExpressionList() throws -> [any Expression] {
+    var expressions: [any Expression] = []
+    while true {
+      expressions.append(try parseExpression())
+      if match(symbol: ",") {
+        continue
+      }
+      break
+    }
+    return expressions
   }
 
   private mutating func parseLimitClauseIfPresent() throws -> Int? {
@@ -1295,7 +1468,7 @@ private struct Tokenizer {
       let nextIndex = sql.index(after: index)
       if nextIndex < sql.endIndex {
         let pair = String([character, sql[nextIndex]])
-        if ["<>", "!=", ">=", "<=", "||", "::"].contains(pair) {
+        if ["<>", "!=", ">=", "<=", "||", "::", "|>"].contains(pair) {
           tokens.append(Token(text: pair, kind: .symbol))
           index = sql.index(after: nextIndex)
           continue

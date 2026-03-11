@@ -213,6 +213,7 @@ Separator behavior:
 - `.oracle`
 - `.bigQuery`
 - `.snowflake`
+- `.salesforceSoql`
 
 ### Experimental Flags
 
@@ -224,6 +225,16 @@ Separator behavior:
 - `.mergeStatements`
 - `.replaceStatements`
 - `.pivotSyntax`
+- `.pipedSql`
+
+Piped SQL (`FROM`-led pipelines) is currently experimental and supports:
+
+- `FROM ... |> WHERE ...`
+- `FROM ... |> SELECT ...`
+- `FROM ... |> ORDER BY ...`
+- `FROM ... |> LIMIT ... [OFFSET ...]`
+- `FROM ... |> JOIN ...` (including join variants)
+- `FROM ... |> AGGREGATE ... [GROUP BY ...]`
 
 Some syntax paths require both a dialect flag and an experimental flag.
 
