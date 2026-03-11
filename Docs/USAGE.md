@@ -353,6 +353,8 @@ This is the Swift equivalent of JSqlParser's build-and-deparse workflow.
 
 ## Supported SQL Surface
 
+For an explicit parity tracker against JSqlParser feature claims, see `Docs/PARITY.md`.
+
 Current implemented families include:
 
 - query: `SELECT`, `WITH`, `VALUES`, set operations, joins, windows, ordering, `LIMIT`, `OFFSET`
