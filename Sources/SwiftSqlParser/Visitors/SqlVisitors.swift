@@ -13,11 +13,13 @@ public protocol StatementVisitor {
   mutating func visit(mergeStatement: MergeStatement)
   mutating func visit(replaceStatement: ReplaceStatement)
   mutating func visit(insertStatement: InsertStatement)
+  mutating func visit(upsertStatement: UpsertStatement)
   mutating func visit(updateStatement: UpdateStatement)
   mutating func visit(deleteStatement: DeleteStatement)
   mutating func visit(createTableStatement: CreateTableStatement)
   mutating func visit(createIndexStatement: CreateIndexStatement)
   mutating func visit(createViewStatement: CreateViewStatement)
+  mutating func visit(createPolicyStatement: CreatePolicyStatement)
   mutating func visit(alterTableStatement: AlterTableStatement)
   mutating func visit(dropTableStatement: DropTableStatement)
   mutating func visit(truncateTableStatement: TruncateTableStatement)
@@ -38,11 +40,13 @@ extension StatementVisitor {
   public mutating func visit(mergeStatement: MergeStatement) {}
   public mutating func visit(replaceStatement: ReplaceStatement) {}
   public mutating func visit(insertStatement: InsertStatement) {}
+  public mutating func visit(upsertStatement: UpsertStatement) {}
   public mutating func visit(updateStatement: UpdateStatement) {}
   public mutating func visit(deleteStatement: DeleteStatement) {}
   public mutating func visit(createTableStatement: CreateTableStatement) {}
   public mutating func visit(createIndexStatement: CreateIndexStatement) {}
   public mutating func visit(createViewStatement: CreateViewStatement) {}
+  public mutating func visit(createPolicyStatement: CreatePolicyStatement) {}
   public mutating func visit(alterTableStatement: AlterTableStatement) {}
   public mutating func visit(dropTableStatement: DropTableStatement) {}
   public mutating func visit(truncateTableStatement: TruncateTableStatement) {}
@@ -182,6 +186,11 @@ public enum AstVisit {
       return
     }
 
+    if let upsert = statement as? UpsertStatement {
+      visitor.visit(upsertStatement: upsert)
+      return
+    }
+
     if let update = statement as? UpdateStatement {
       visitor.visit(updateStatement: update)
       return
@@ -204,6 +213,11 @@ public enum AstVisit {
 
     if let createView = statement as? CreateViewStatement {
       visitor.visit(createViewStatement: createView)
+      return
+    }
+
+    if let createPolicy = statement as? CreatePolicyStatement {
+      visitor.visit(createPolicyStatement: createPolicy)
       return
     }
 

@@ -1223,7 +1223,8 @@ private struct Tokenizer {
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.dialectFeatures.contains(.mysql)
             || options.dialectFeatures.contains(.bigQuery)
-            || options.dialectFeatures.contains(.snowflake))
+            || options.dialectFeatures.contains(.snowflake)
+            || options.dialectFeatures.contains(.sqlite))
       {
         let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
         tokens.append(Token(text: identifier, kind: .identifier))

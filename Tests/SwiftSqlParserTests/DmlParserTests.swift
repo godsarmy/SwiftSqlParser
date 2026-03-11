@@ -285,6 +285,86 @@ func mergeAndReplaceParseWhenEnabled() throws {
 }
 
 @Test
+func upsertParsesWhenDialectEnabled() throws {
+  let options = ParserOptions(dialectFeatures: [.sqlite])
+  let parsed = try parseStatement(
+    "UPSERT INTO users (id, name) VALUES (1, 'Alice') ON CONFLICT (id) DO UPDATE SET name = 'Bob' RETURNING id",
+    options: options
+  )
+  guard let upsert = parsed as? UpsertStatement else {
+    Issue.record("Expected UpsertStatement")
+    return
+  }
+
+  #expect(upsert.table == "users")
+  #expect(upsert.columns == ["id", "name"])
+  #expect(upsert.onConflict != nil)
+  #expect(upsert.returningClause != nil)
+}
+
+@Test
+func upsertSupportsSelectAndDefaultValues() throws {
+  let options = ParserOptions(dialectFeatures: [.postgres])
+
+  let selectParsed = try parseStatement(
+    "UPSERT INTO users (id) SELECT id FROM staging_users",
+    options: options
+  )
+  guard let selectUpsert = selectParsed as? UpsertStatement else {
+    Issue.record("Expected UpsertStatement")
+    return
+  }
+  guard case .select = selectUpsert.source else {
+    Issue.record("Expected select source")
+    return
+  }
+
+  let defaultParsed = try parseStatement("UPSERT INTO users DEFAULT VALUES", options: options)
+  guard let defaultUpsert = defaultParsed as? UpsertStatement else {
+    Issue.record("Expected UpsertStatement")
+    return
+  }
+  guard case .defaultValues = defaultUpsert.source else {
+    Issue.record("Expected default values source")
+    return
+  }
+}
+
+@Test
+func upsertRequiresSupportedDialect() {
+  #expect(throws: SqlParseError.self) {
+    try parseStatement("UPSERT INTO users (id) VALUES (1)")
+  }
+}
+
+@Test
+func deparserHandlesUpsertStatements() {
+  let deparser = StatementDeparser()
+  let upsert = UpsertStatement(
+    table: "users",
+    columns: ["id", "name"],
+    source: .values([[NumberLiteralExpression(value: 1), StringLiteralExpression(value: "Alice")]]),
+    onConflict: InsertOnConflictClause(
+      targetColumns: ["id"],
+      action: .doUpdate(
+        assignments: [
+          UpdateAssignment(column: "name", value: StringLiteralExpression(value: "Bob"))
+        ],
+        whereExpression: nil
+      )
+    ),
+    returningClause: ReturningClause(items: [
+      ExpressionSelectItem(expression: IdentifierExpression(name: "id"))
+    ])
+  )
+
+  #expect(
+    deparser.deparse(upsert)
+      == "UPSERT INTO users (id, name) VALUES (1, 'Alice') ON CONFLICT (id) DO UPDATE SET name = 'Bob' RETURNING id"
+  )
+}
+
+@Test
 func updateParsesAdvancedExpressions() throws {
   let sql =
     "UPDATE users SET status = CASE WHEN score >= 90 THEN 'A' ELSE 'B' END, nickname = CAST(name AS TEXT), deleted_at = NULL WHERE id = $1 AND archived_at IS NULL AND score BETWEEN 10 AND 20 AND email LIKE ?"

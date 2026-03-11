@@ -17,11 +17,13 @@ private struct CountingStatementVisitor: StatementVisitor {
   var mergeCount = 0
   var replaceCount = 0
   var insertCount = 0
+  var upsertCount = 0
   var updateCount = 0
   var deleteCount = 0
   var createCount = 0
   var createIndexCount = 0
   var createViewCount = 0
+  var createPolicyCount = 0
   var alterCount = 0
   var dropCount = 0
   var truncateCount = 0
@@ -82,6 +84,10 @@ private struct CountingStatementVisitor: StatementVisitor {
     insertCount += 1
   }
 
+  mutating func visit(upsertStatement: UpsertStatement) {
+    upsertCount += 1
+  }
+
   mutating func visit(updateStatement: UpdateStatement) {
     updateCount += 1
   }
@@ -100,6 +106,10 @@ private struct CountingStatementVisitor: StatementVisitor {
 
   mutating func visit(createViewStatement: CreateViewStatement) {
     createViewCount += 1
+  }
+
+  mutating func visit(createPolicyStatement: CreatePolicyStatement) {
+    createPolicyCount += 1
   }
 
   mutating func visit(alterTableStatement: AlterTableStatement) {
@@ -153,14 +163,34 @@ func statementVisitorDispatchesExpectedType() {
   #expect(visitor.mergeCount == 0)
   #expect(visitor.replaceCount == 0)
   #expect(visitor.insertCount == 0)
+  #expect(visitor.upsertCount == 0)
   #expect(visitor.updateCount == 0)
   #expect(visitor.deleteCount == 0)
   #expect(visitor.createCount == 0)
   #expect(visitor.createIndexCount == 0)
   #expect(visitor.createViewCount == 0)
+  #expect(visitor.createPolicyCount == 0)
   #expect(visitor.alterCount == 0)
   #expect(visitor.dropCount == 0)
   #expect(visitor.truncateCount == 0)
+}
+
+@Test
+func statementVisitorDispatchesUpsertAndCreatePolicy() {
+  var visitor = CountingStatementVisitor()
+
+  let upsert = UpsertStatement(
+    table: "users",
+    columns: ["id"],
+    source: .values([[NumberLiteralExpression(value: 1)]])
+  )
+  AstVisit.statement(upsert, visitor: &visitor)
+
+  let policy = CreatePolicyStatement(name: "users_policy", table: "users")
+  AstVisit.statement(policy, visitor: &visitor)
+
+  #expect(visitor.upsertCount == 1)
+  #expect(visitor.createPolicyCount == 1)
 }
 
 @Test
@@ -210,6 +240,27 @@ func tableNameFinderHandlesDmlAndDdlTargets() {
         constraints: [.references(table: "users", columns: ["id"])])
     ])
   #expect(TableNameFinder().find(in: create) == ["orders", "users"])
+
+  let upsert = UpsertStatement(
+    table: "users",
+    columns: ["id"],
+    source: .select(
+      PlainSelect(
+        selectItems: [ExpressionSelectItem(expression: IdentifierExpression(name: "id"))],
+        from: TableFromItem(name: "staging_users")))
+  )
+  #expect(TableNameFinder().find(in: upsert) == ["staging_users", "users"])
+
+  let policy = CreatePolicyStatement(
+    name: "users_policy",
+    table: "users",
+    usingExpression: BinaryExpression(
+      left: IdentifierExpression(name: "users.tenant_id"),
+      operator: .equals,
+      right: IdentifierExpression(name: "tenants.id")
+    )
+  )
+  #expect(TableNameFinder().find(in: policy) == ["tenants", "users"])
 }
 
 @Test

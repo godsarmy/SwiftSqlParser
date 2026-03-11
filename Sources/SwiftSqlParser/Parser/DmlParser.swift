@@ -23,6 +23,10 @@ struct DmlParser {
       return try parseInsert()
     }
 
+    if matchKeyword("UPSERT") {
+      return try parseUpsert()
+    }
+
     if matchKeyword("UPDATE") {
       return try parseUpdate()
     }
@@ -117,6 +121,41 @@ struct DmlParser {
   }
 
   private mutating func parseInsert() throws -> InsertStatement {
+    let parsed = try parseInsertLikeStatement()
+    return InsertStatement(
+      table: parsed.table,
+      columns: parsed.columns,
+      source: parsed.source,
+      onConflict: parsed.onConflict,
+      onDuplicateKeyAssignments: parsed.onDuplicateKeyAssignments,
+      returningClause: parsed.returningClause
+    )
+  }
+
+  private mutating func parseUpsert() throws -> UpsertStatement {
+    guard options.dialectFeatures.contains(.postgres) || options.dialectFeatures.contains(.sqlite)
+    else {
+      throw DmlParseFailure.expected("UPSERT requires Postgres or SQLite dialect")
+    }
+    let parsed = try parseInsertLikeStatement()
+    return UpsertStatement(
+      table: parsed.table,
+      columns: parsed.columns,
+      source: parsed.source,
+      onConflict: parsed.onConflict,
+      onDuplicateKeyAssignments: parsed.onDuplicateKeyAssignments,
+      returningClause: parsed.returningClause
+    )
+  }
+
+  private mutating func parseInsertLikeStatement() throws -> (
+    table: String,
+    columns: [String],
+    source: InsertStatement.Source,
+    onConflict: InsertOnConflictClause?,
+    onDuplicateKeyAssignments: [UpdateAssignment],
+    returningClause: ReturningClause?
+  ) {
     try consumeKeyword("INTO")
     let table = try consumeIdentifier()
 
@@ -151,7 +190,7 @@ struct DmlParser {
     let returningClause = try parseReturningClauseIfPresent()
 
     try ensureAtEnd()
-    return InsertStatement(
+    return (
       table: table,
       columns: columns,
       source: source,
@@ -1037,7 +1076,8 @@ private struct Tokenizer {
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.dialectFeatures.contains(.mysql)
             || options.dialectFeatures.contains(.bigQuery)
-            || options.dialectFeatures.contains(.snowflake))
+            || options.dialectFeatures.contains(.snowflake)
+            || options.dialectFeatures.contains(.sqlite))
       {
         let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
         tokens.append(Token(text: identifier, kind: .identifier))

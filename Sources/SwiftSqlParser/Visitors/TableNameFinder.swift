@@ -55,6 +55,10 @@ private struct Collector {
       names.insert(insert.table)
       visit(insertSource: insert.source)
       visit(returning: insert.returningClause)
+    case let upsert as UpsertStatement:
+      names.insert(upsert.table)
+      visit(insertSource: upsert.source)
+      visit(returning: upsert.returningClause)
     case let update as UpdateStatement:
       names.insert(update.table)
       update.assignments.forEach { visit(expression: $0.value) }
@@ -87,6 +91,14 @@ private struct Collector {
     case let createView as CreateViewStatement:
       names.insert(createView.name)
       visit(statement: createView.select)
+    case let createPolicy as CreatePolicyStatement:
+      names.insert(createPolicy.table)
+      if let usingExpression = createPolicy.usingExpression {
+        visit(expression: usingExpression)
+      }
+      if let withCheckExpression = createPolicy.withCheckExpression {
+        visit(expression: withCheckExpression)
+      }
     case let alter as AlterTableStatement:
       names.insert(alter.table)
       visit(alterOperation: alter.operation)
@@ -181,7 +193,7 @@ private struct Collector {
       column.constraints.forEach { visit(columnConstraint: $0) }
     case .addConstraint(let constraint):
       visit(tableConstraint: constraint)
-    case .dropColumn, .renameColumn, .renameTable, .dropConstraint:
+    case .dropColumn, .renameColumn, .renameTable, .dropConstraint, .rowLevelSecurity(_):
       break
     }
   }

@@ -15,6 +15,13 @@ public enum DialectFeature: String, Sendable, Hashable {
   case oracle
   case bigQuery
   case snowflake
+  case duckDB
+  case redshift
+  case db2
+  case h2
+  case hsqldb
+  case derby
+  case sqlite
 }
 
 public enum ExperimentalFeature: String, Sendable, Hashable {

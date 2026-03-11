@@ -105,7 +105,7 @@ public struct SqlParser: Sendable {
 
     if uppercased.hasPrefix("INSERT ") || uppercased.hasPrefix("UPDATE ")
       || uppercased.hasPrefix("DELETE ") || uppercased.hasPrefix("MERGE ")
-      || uppercased.hasPrefix("REPLACE ")
+      || uppercased.hasPrefix("REPLACE ") || uppercased.hasPrefix("UPSERT ")
     {
       do {
         var dmlParser = try DmlParser(sql: cleaned, options: options)

@@ -48,7 +48,11 @@ struct DdlParser {
       return try parseCreateView()
     }
 
-    throw DdlParseFailure.expected("TABLE, INDEX, or VIEW")
+    if matchKeyword("POLICY") {
+      return try parseCreatePolicy()
+    }
+
+    throw DdlParseFailure.expected("TABLE, INDEX, VIEW, or POLICY")
   }
 
   private mutating func parseCreateTable() throws -> CreateTableStatement {
@@ -96,6 +100,81 @@ struct DdlParser {
     return CreateViewStatement(name: name, select: select)
   }
 
+  private mutating func parseCreatePolicy() throws -> CreatePolicyStatement {
+    guard options.dialectFeatures.contains(.postgres) else {
+      throw DdlParseFailure.expected("CREATE POLICY requires Postgres dialect")
+    }
+
+    let name = try consumeIdentifier()
+    try consumeKeyword("ON")
+    let table = try consumeIdentifier()
+
+    let scope: PolicyScope?
+    if matchKeyword("AS") {
+      if matchKeyword("PERMISSIVE") {
+        scope = .permissive
+      } else if matchKeyword("RESTRICTIVE") {
+        scope = .restrictive
+      } else {
+        throw DdlParseFailure.expected("PERMISSIVE or RESTRICTIVE")
+      }
+    } else {
+      scope = nil
+    }
+
+    let command: PolicyCommand?
+    if matchKeyword("FOR") {
+      if matchKeyword("ALL") {
+        command = .all
+      } else if matchKeyword("SELECT") {
+        command = .select
+      } else if matchKeyword("INSERT") {
+        command = .insert
+      } else if matchKeyword("UPDATE") {
+        command = .update
+      } else if matchKeyword("DELETE") {
+        command = .delete
+      } else {
+        throw DdlParseFailure.expected("ALL, SELECT, INSERT, UPDATE, or DELETE")
+      }
+    } else {
+      command = nil
+    }
+
+    let roles: [String]
+    if matchKeyword("TO") {
+      roles = try parseIdentifierList()
+    } else {
+      roles = []
+    }
+
+    let usingExpression: (any Expression)?
+    if matchKeyword("USING") {
+      usingExpression = try parseParenthesizedRawExpression()
+    } else {
+      usingExpression = nil
+    }
+
+    let withCheckExpression: (any Expression)?
+    if matchKeyword("WITH") {
+      try consumeKeyword("CHECK")
+      withCheckExpression = try parseParenthesizedRawExpression()
+    } else {
+      withCheckExpression = nil
+    }
+
+    try ensureAtEnd()
+    return CreatePolicyStatement(
+      name: name,
+      table: table,
+      scope: scope,
+      command: command,
+      roles: roles,
+      usingExpression: usingExpression,
+      withCheckExpression: withCheckExpression
+    )
+  }
+
   private mutating func parseAlter() throws -> AlterTableStatement {
     try consumeKeyword("TABLE")
     let table = try consumeIdentifier()
@@ -138,9 +217,32 @@ struct DdlParser {
       let newName = try consumeIdentifier()
       try ensureAtEnd()
       return AlterTableStatement(table: table, operation: .renameTable(newName))
+    } else if matchKeyword("ENABLE") {
+      return try parseAlterTableRowLevelSecurity(table: table, mode: .enable)
+    } else if matchKeyword("DISABLE") {
+      return try parseAlterTableRowLevelSecurity(table: table, mode: .disable)
+    } else if matchKeyword("FORCE") {
+      return try parseAlterTableRowLevelSecurity(table: table, mode: .force)
+    } else if matchKeyword("NO") {
+      try consumeKeyword("FORCE")
+      return try parseAlterTableRowLevelSecurity(table: table, mode: .noForce)
     }
 
     throw DdlParseFailure.expected("ALTER TABLE operation")
+  }
+
+  private mutating func parseAlterTableRowLevelSecurity(
+    table: String,
+    mode: RowLevelSecurityMode
+  ) throws -> AlterTableStatement {
+    guard options.dialectFeatures.contains(.postgres) else {
+      throw DdlParseFailure.expected("ROW LEVEL SECURITY requires Postgres dialect")
+    }
+    try consumeKeyword("ROW")
+    try consumeKeyword("LEVEL")
+    try consumeKeyword("SECURITY")
+    try ensureAtEnd()
+    return AlterTableStatement(table: table, operation: .rowLevelSecurity(mode))
   }
 
   private mutating func parseDrop() throws -> DropTableStatement {
@@ -236,6 +338,22 @@ struct DdlParser {
       try consumeSymbol(")")
       return identifiers
     }
+  }
+
+  private mutating func parseIdentifierList() throws -> [String] {
+    var identifiers: [String] = []
+    while true {
+      identifiers.append(try consumeIdentifier())
+      if match(symbol: ",") {
+        continue
+      }
+      return identifiers
+    }
+  }
+
+  private mutating func parseParenthesizedRawExpression() throws -> any Expression {
+    try consumeSymbol("(")
+    return RawExpression(sql: try collectBalancedParenthesisSql())
   }
 
   private mutating func parseTypeName() throws -> String {
@@ -453,7 +571,8 @@ private struct Tokenizer {
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.dialectFeatures.contains(.mysql)
             || options.dialectFeatures.contains(.bigQuery)
-            || options.dialectFeatures.contains(.snowflake))
+            || options.dialectFeatures.contains(.snowflake)
+            || options.dialectFeatures.contains(.sqlite))
       {
         let (identifier, nextIndex) = try consumeQuotedIdentifier(from: index, quote: "`")
         tokens.append(Token(text: identifier, kind: .identifier))

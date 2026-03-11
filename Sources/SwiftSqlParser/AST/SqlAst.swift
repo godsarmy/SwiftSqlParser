@@ -343,6 +343,40 @@ public struct InsertStatement: Statement, Sendable, Equatable {
   }
 }
 
+public struct UpsertStatement: Statement, Sendable, Equatable {
+  public let table: String
+  public let columns: [String]
+  public let source: InsertStatement.Source
+  public let onConflict: InsertOnConflictClause?
+  public let onDuplicateKeyAssignments: [UpdateAssignment]
+  public let returningClause: ReturningClause?
+
+  public init(
+    table: String,
+    columns: [String],
+    source: InsertStatement.Source,
+    onConflict: InsertOnConflictClause? = nil,
+    onDuplicateKeyAssignments: [UpdateAssignment] = [],
+    returningClause: ReturningClause? = nil
+  ) {
+    self.table = table
+    self.columns = columns
+    self.source = source
+    self.onConflict = onConflict
+    self.onDuplicateKeyAssignments = onDuplicateKeyAssignments
+    self.returningClause = returningClause
+  }
+
+  public static func == (lhs: UpsertStatement, rhs: UpsertStatement) -> Bool {
+    lhs.table == rhs.table
+      && lhs.columns == rhs.columns
+      && lhs.source == rhs.source
+      && lhs.onConflict == rhs.onConflict
+      && lhs.onDuplicateKeyAssignments == rhs.onDuplicateKeyAssignments
+      && lhs.returningClause == rhs.returningClause
+  }
+}
+
 extension InsertStatement.Source {
   public static func == (lhs: InsertStatement.Source, rhs: InsertStatement.Source) -> Bool {
     switch (lhs, rhs) {
@@ -587,6 +621,66 @@ public struct CreateViewStatement: Statement, Sendable, Equatable {
   }
 }
 
+public enum PolicyScope: String, Sendable, Equatable {
+  case permissive
+  case restrictive
+}
+
+public enum PolicyCommand: String, Sendable, Equatable {
+  case all
+  case select
+  case insert
+  case update
+  case delete
+}
+
+public struct CreatePolicyStatement: Statement, Sendable, Equatable {
+  public let name: String
+  public let table: String
+  public let scope: PolicyScope?
+  public let command: PolicyCommand?
+  public let roles: [String]
+  public let usingExpression: (any Expression)?
+  public let withCheckExpression: (any Expression)?
+
+  public init(
+    name: String,
+    table: String,
+    scope: PolicyScope? = nil,
+    command: PolicyCommand? = nil,
+    roles: [String] = [],
+    usingExpression: (any Expression)? = nil,
+    withCheckExpression: (any Expression)? = nil
+  ) {
+    self.name = name
+    self.table = table
+    self.scope = scope
+    self.command = command
+    self.roles = roles
+    self.usingExpression = usingExpression
+    self.withCheckExpression = withCheckExpression
+  }
+
+  public static func == (lhs: CreatePolicyStatement, rhs: CreatePolicyStatement) -> Bool {
+    lhs.name == rhs.name
+      && lhs.table == rhs.table
+      && lhs.scope == rhs.scope
+      && lhs.command == rhs.command
+      && lhs.roles == rhs.roles
+      && ((lhs.usingExpression == nil && rhs.usingExpression == nil)
+        || (lhs.usingExpression != nil && rhs.usingExpression != nil))
+      && ((lhs.withCheckExpression == nil && rhs.withCheckExpression == nil)
+        || (lhs.withCheckExpression != nil && rhs.withCheckExpression != nil))
+  }
+}
+
+public enum RowLevelSecurityMode: String, Sendable, Equatable {
+  case enable
+  case disable
+  case force
+  case noForce
+}
+
 public enum AlterTableOperation: Sendable, Equatable {
   case addColumn(TableColumnDefinition)
   case dropColumn(String)
@@ -594,6 +688,7 @@ public enum AlterTableOperation: Sendable, Equatable {
   case renameTable(String)
   case addConstraint(TableConstraintDefinition)
   case dropConstraint(String)
+  case rowLevelSecurity(RowLevelSecurityMode)
 }
 
 public struct AlterTableStatement: Statement, Sendable, Equatable {

@@ -136,6 +136,40 @@ public struct StatementDeparser {
       return sql
     }
 
+    if let upsert = statement as? UpsertStatement {
+      let columns = upsert.columns.isEmpty ? "" : " (\(upsert.columns.joined(separator: ", ")))"
+      var sql = "UPSERT INTO \(upsert.table)\(columns)"
+      switch upsert.source {
+      case .values(let rows):
+        let rowSql =
+          rows
+          .map { "(\($0.map(expressionDeparser.deparse).joined(separator: ", ")))" }
+          .joined(separator: ", ")
+        sql += " VALUES \(rowSql)"
+      case .select(let statement):
+        sql += " \(deparse(statement))"
+      case .defaultValues:
+        sql += " DEFAULT VALUES"
+      }
+
+      if let onConflict = upsert.onConflict {
+        sql += deparseOnConflictClause(onConflict)
+      }
+
+      if upsert.onDuplicateKeyAssignments.isEmpty == false {
+        let assignments = upsert.onDuplicateKeyAssignments
+          .map { "\($0.column) = \(expressionDeparser.deparse($0.value))" }
+          .joined(separator: ", ")
+        sql += " ON DUPLICATE KEY UPDATE \(assignments)"
+      }
+
+      if let returningClause = upsert.returningClause {
+        sql += " RETURNING \(deparseReturningClause(returningClause))"
+      }
+
+      return sql
+    }
+
     if let update = statement as? UpdateStatement {
       let selectDeparser = SelectDeparser(expressionDeparser: expressionDeparser)
       let assignments = update.assignments
@@ -191,6 +225,26 @@ public struct StatementDeparser {
       return "CREATE VIEW \(createView.name) AS \(deparse(createView.select))"
     }
 
+    if let createPolicy = statement as? CreatePolicyStatement {
+      var sql = "CREATE POLICY \(createPolicy.name) ON \(createPolicy.table)"
+      if let scope = createPolicy.scope {
+        sql += " AS \(scope == .permissive ? "PERMISSIVE" : "RESTRICTIVE")"
+      }
+      if let command = createPolicy.command {
+        sql += " FOR \(command.rawValue.uppercased())"
+      }
+      if createPolicy.roles.isEmpty == false {
+        sql += " TO \(createPolicy.roles.joined(separator: ", "))"
+      }
+      if let usingExpression = createPolicy.usingExpression {
+        sql += " USING (\(expressionDeparser.deparse(usingExpression)))"
+      }
+      if let withCheckExpression = createPolicy.withCheckExpression {
+        sql += " WITH CHECK (\(expressionDeparser.deparse(withCheckExpression)))"
+      }
+      return sql
+    }
+
     if let alter = statement as? AlterTableStatement {
       switch alter.operation {
       case .addColumn(let column):
@@ -205,6 +259,17 @@ public struct StatementDeparser {
         return "ALTER TABLE \(alter.table) ADD \(deparseTableConstraint(constraint))"
       case .dropConstraint(let name):
         return "ALTER TABLE \(alter.table) DROP CONSTRAINT \(name)"
+      case .rowLevelSecurity(let mode):
+        switch mode {
+        case .enable:
+          return "ALTER TABLE \(alter.table) ENABLE ROW LEVEL SECURITY"
+        case .disable:
+          return "ALTER TABLE \(alter.table) DISABLE ROW LEVEL SECURITY"
+        case .force:
+          return "ALTER TABLE \(alter.table) FORCE ROW LEVEL SECURITY"
+        case .noForce:
+          return "ALTER TABLE \(alter.table) NO FORCE ROW LEVEL SECURITY"
+        }
       }
     }
 
