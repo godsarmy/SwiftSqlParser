@@ -40,7 +40,8 @@ struct DmlParser {
 
   private mutating func parseMerge() throws -> MergeStatement {
     guard options.experimentalFeatures.contains(.mergeStatements),
-      options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.oracle)
+      options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.sybase)
+        || options.dialectFeatures.contains(.oracle)
     else {
       throw DmlParseFailure.expected("MERGE enabled by dialect options")
     }
@@ -91,7 +92,7 @@ struct DmlParser {
 
   private mutating func parseReplace() throws -> ReplaceStatement {
     guard options.experimentalFeatures.contains(.replaceStatements),
-      options.dialectFeatures.contains(.mysql)
+      options.dialectFeatures.contains(.mysql) || options.dialectFeatures.contains(.mariaDB)
     else {
       throw DmlParseFailure.expected("REPLACE enabled by dialect options")
     }
@@ -1097,7 +1098,8 @@ private struct Tokenizer {
       if character == "[",
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.identifierQuoting == .squareBrackets
-            || options.dialectFeatures.contains(.sqlServer))
+            || options.dialectFeatures.contains(.sqlServer)
+            || options.dialectFeatures.contains(.sybase))
       {
         let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
         tokens.append(Token(text: identifier, kind: .identifier))
@@ -1108,6 +1110,7 @@ private struct Tokenizer {
       if character == "`",
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.dialectFeatures.contains(.mysql)
+            || options.dialectFeatures.contains(.mariaDB)
             || options.dialectFeatures.contains(.bigQuery)
             || options.dialectFeatures.contains(.snowflake)
             || options.dialectFeatures.contains(.sqlite))

@@ -11,7 +11,9 @@ public enum EscapeBehavior: Sendable, Equatable {
 public enum DialectFeature: String, Sendable, Hashable {
   case postgres
   case mysql
+  case mariaDB
   case sqlServer
+  case sybase
   case oracle
   case bigQuery
   case snowflake

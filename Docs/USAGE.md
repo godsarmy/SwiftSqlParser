@@ -209,7 +209,9 @@ Separator behavior:
 
 - `.postgres`
 - `.mysql`
+- `.mariaDB`
 - `.sqlServer`
+- `.sybase`
 - `.oracle`
 - `.bigQuery`
 - `.snowflake`

@@ -559,7 +559,8 @@ private struct Tokenizer {
       if character == "[",
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.identifierQuoting == .squareBrackets
-            || options.dialectFeatures.contains(.sqlServer))
+            || options.dialectFeatures.contains(.sqlServer)
+            || options.dialectFeatures.contains(.sybase))
       {
         let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
         tokens.append(Token(text: identifier, kind: .identifier))
@@ -570,6 +571,7 @@ private struct Tokenizer {
       if character == "`",
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.dialectFeatures.contains(.mysql)
+            || options.dialectFeatures.contains(.mariaDB)
             || options.dialectFeatures.contains(.bigQuery)
             || options.dialectFeatures.contains(.snowflake)
             || options.dialectFeatures.contains(.sqlite))

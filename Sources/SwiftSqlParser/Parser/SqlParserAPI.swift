@@ -529,6 +529,7 @@ public struct SqlParser: Sendable {
     if uppercase.contains("MERGE"),
       !(options.experimentalFeatures.contains(.mergeStatements)
         && (options.dialectFeatures.contains(.sqlServer)
+          || options.dialectFeatures.contains(.sybase)
           || options.dialectFeatures.contains(.oracle)))
     {
       unsupportedRules.append(("MERGE", "merge_statement"))
@@ -537,6 +538,7 @@ public struct SqlParser: Sendable {
     if uppercase.contains("PIVOT"), !uppercase.contains("UNPIVOT"),
       !(options.experimentalFeatures.contains(.pivotSyntax)
         && (options.dialectFeatures.contains(.sqlServer)
+          || options.dialectFeatures.contains(.sybase)
           || options.dialectFeatures.contains(.oracle)))
     {
       unsupportedRules.append(("PIVOT", "pivot_clause"))
@@ -545,6 +547,7 @@ public struct SqlParser: Sendable {
     if uppercase.contains("UNPIVOT"),
       !(options.experimentalFeatures.contains(.pivotSyntax)
         && (options.dialectFeatures.contains(.sqlServer)
+          || options.dialectFeatures.contains(.sybase)
           || options.dialectFeatures.contains(.oracle)))
     {
       unsupportedRules.append(("UNPIVOT", "unpivot_clause"))

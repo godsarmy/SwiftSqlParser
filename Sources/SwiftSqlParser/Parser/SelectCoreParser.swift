@@ -312,7 +312,7 @@ struct SelectCoreParser {
     guard checkKeyword("TOP") else {
       return nil
     }
-    guard options.dialectFeatures.contains(.sqlServer),
+    guard options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.sybase),
       options.experimentalFeatures.contains(.sqlServerTop)
     else {
       throw SelectParseFailure.expected("TOP enabled by dialect options")
@@ -464,7 +464,8 @@ struct SelectCoreParser {
   private mutating func parsePivotOrUnpivotIfPresent(source: any FromItem) throws -> any FromItem {
     if matchKeyword("PIVOT") {
       guard options.experimentalFeatures.contains(.pivotSyntax),
-        options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.oracle)
+        options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.sybase)
+          || options.dialectFeatures.contains(.oracle)
       else {
         throw SelectParseFailure.expected("PIVOT enabled by dialect options")
       }
@@ -498,7 +499,8 @@ struct SelectCoreParser {
 
     if matchKeyword("UNPIVOT") {
       guard options.experimentalFeatures.contains(.pivotSyntax),
-        options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.oracle)
+        options.dialectFeatures.contains(.sqlServer) || options.dialectFeatures.contains(.sybase)
+          || options.dialectFeatures.contains(.oracle)
       else {
         throw SelectParseFailure.expected("UNPIVOT enabled by dialect options")
       }
@@ -1417,7 +1419,8 @@ private struct Tokenizer {
       if character == "[",
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.identifierQuoting == .squareBrackets
-            || options.dialectFeatures.contains(.sqlServer))
+            || options.dialectFeatures.contains(.sqlServer)
+            || options.dialectFeatures.contains(.sybase))
       {
         let (identifier, nextIndex) = try consumeBracketIdentifier(from: index)
         tokens.append(Token(text: identifier, kind: .identifier))
@@ -1428,6 +1431,7 @@ private struct Tokenizer {
       if character == "`",
         options.experimentalFeatures.contains(.quotedIdentifiers)
           && (options.dialectFeatures.contains(.mysql)
+            || options.dialectFeatures.contains(.mariaDB)
             || options.dialectFeatures.contains(.bigQuery)
             || options.dialectFeatures.contains(.snowflake)
             || options.dialectFeatures.contains(.sqlite))

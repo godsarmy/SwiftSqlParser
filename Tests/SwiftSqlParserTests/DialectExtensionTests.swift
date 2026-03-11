@@ -35,6 +35,21 @@ func mysqlBacktickIdentifiersParseWhenEnabled() throws {
 }
 
 @Test
+func mariaDbBacktickIdentifiersParseWhenEnabled() throws {
+  let options = ParserOptions(
+    dialectFeatures: [.mariaDB], experimentalFeatures: [.quotedIdentifiers])
+  let parsed = try parseStatement("SELECT `id` FROM `users`", options: options)
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 1)
+  #expect(StatementDeparser().deparse(select) == "SELECT id FROM users")
+}
+
+@Test
 func postgresIlikeParsesWhenFeatureEnabled() throws {
   let options = ParserOptions(dialectFeatures: [.postgres], experimentalFeatures: [.postgresIlike])
   let parsed = try parseStatement("SELECT id FROM users WHERE name ILIKE 'a%'", options: options)
@@ -87,6 +102,20 @@ func postgresDistinctOnWithoutFeatureReturnsUnsupported() {
 @Test
 func sqlServerTopParsesWhenEnabled() throws {
   let options = ParserOptions(dialectFeatures: [.sqlServer], experimentalFeatures: [.sqlServerTop])
+  let parsed = try parseStatement("SELECT TOP 5 id FROM users", options: options)
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.top == 5)
+  #expect(StatementDeparser().deparse(select) == "SELECT TOP 5 id FROM users")
+}
+
+@Test
+func sybaseTopParsesWhenEnabled() throws {
+  let options = ParserOptions(dialectFeatures: [.sybase], experimentalFeatures: [.sqlServerTop])
   let parsed = try parseStatement("SELECT TOP 5 id FROM users", options: options)
 
   guard let select = parsed as? PlainSelect else {
