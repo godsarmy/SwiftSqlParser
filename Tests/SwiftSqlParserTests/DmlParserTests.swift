@@ -285,6 +285,46 @@ func mergeAndReplaceParseWhenEnabled() throws {
 }
 
 @Test
+func mergeParsesWhenSybaseDialectEnabled() throws {
+  let options = ParserOptions(
+    dialectFeatures: [.sybase],
+    experimentalFeatures: [.mergeStatements]
+  )
+  let parsed = try parseStatement(
+    "MERGE INTO users u USING SELECT id FROM staged_users s ON u.id = s.id WHEN MATCHED THEN UPDATE SET u.id = s.id WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id)",
+    options: options
+  )
+
+  guard let merge = parsed as? MergeStatement else {
+    Issue.record("Expected MergeStatement")
+    return
+  }
+
+  #expect(merge.targetTable == "users")
+  #expect(merge.clauses.count == 2)
+}
+
+@Test
+func replaceParsesWhenMariaDbDialectEnabled() throws {
+  let options = ParserOptions(
+    dialectFeatures: [.mariaDB],
+    experimentalFeatures: [.replaceStatements]
+  )
+  let parsed = try parseStatement(
+    "REPLACE INTO users (id, name) VALUES (1, 'alice')",
+    options: options
+  )
+
+  guard let replace = parsed as? ReplaceStatement else {
+    Issue.record("Expected ReplaceStatement")
+    return
+  }
+
+  #expect(replace.table == "users")
+  #expect(replace.columns == ["id", "name"])
+}
+
+@Test
 func upsertParsesWhenDialectEnabled() throws {
   let options = ParserOptions(dialectFeatures: [.sqlite])
   let parsed = try parseStatement(
