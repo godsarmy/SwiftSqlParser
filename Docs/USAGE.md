@@ -233,8 +233,11 @@ Piped SQL (`FROM`-led pipelines) is currently experimental and supports:
 
 - `FROM ... |> WHERE ...`
 - `FROM ... |> SELECT ...`
+- `FROM ... |> HAVING ...`
+- `FROM ... |> QUALIFY ...`
 - `FROM ... |> ORDER BY ...`
 - `FROM ... |> LIMIT ... [OFFSET ...]`
+- `FROM ... |> OFFSET ...`
 - `FROM ... |> JOIN ...` (including join variants)
 - `FROM ... |> AGGREGATE ... [GROUP BY ...]`
 

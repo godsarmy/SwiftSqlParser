@@ -104,6 +104,8 @@ struct SelectCoreParser {
     var selectItems: [any SelectItem] = [AllColumnsSelectItem()]
     var whereExpression: (any Expression)?
     var groupByExpressions: [any Expression] = []
+    var havingExpression: (any Expression)?
+    var qualifyExpression: (any Expression)?
     var orderBy: [OrderByElement] = []
     var limit: Int?
     var offset: Int?
@@ -125,11 +127,26 @@ struct SelectCoreParser {
         continue
       }
 
+      if matchKeyword("HAVING") {
+        havingExpression = try parseExpression()
+        continue
+      }
+
+      if matchKeyword("QUALIFY") {
+        qualifyExpression = try parseExpression()
+        continue
+      }
+
       if matchKeyword("LIMIT") {
         limit = try consumeIntegerLiteral()
         if matchKeyword("OFFSET") {
           offset = try consumeIntegerLiteral()
         }
+        continue
+      }
+
+      if matchKeyword("OFFSET") {
+        offset = try consumeIntegerLiteral()
         continue
       }
 
@@ -150,7 +167,7 @@ struct SelectCoreParser {
       }
 
       throw SelectParseFailure.expected(
-        "supported pipe operator (WHERE, SELECT, ORDER BY, LIMIT, JOIN, AGGREGATE)")
+        "supported pipe operator (WHERE, SELECT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, JOIN, AGGREGATE)")
     }
 
     return PlainSelect(
@@ -159,6 +176,8 @@ struct SelectCoreParser {
       joins: joins,
       whereExpression: whereExpression,
       groupByExpressions: groupByExpressions,
+      havingExpression: havingExpression,
+      qualifyExpression: qualifyExpression,
       orderBy: orderBy,
       limit: limit,
       offset: offset

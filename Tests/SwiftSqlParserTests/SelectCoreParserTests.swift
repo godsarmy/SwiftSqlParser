@@ -156,7 +156,7 @@ func selectParserBuildsAdvancedExpressionNodes() throws {
 func pipedFromSqlParsesWhenFeatureEnabled() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(
-    "FROM users |> WHERE active = 1 |> SELECT id, name |> ORDER BY id DESC |> LIMIT 5 OFFSET 2",
+    "FROM users |> WHERE active = 1 |> SELECT id, name |> HAVING COUNT(id) > 0 |> QUALIFY id > 10 |> ORDER BY id DESC |> LIMIT 5 OFFSET 2",
     options: options
   )
 
@@ -167,13 +167,15 @@ func pipedFromSqlParsesWhenFeatureEnabled() throws {
 
   #expect(select.selectItems.count == 2)
   #expect(select.whereExpression != nil)
+  #expect(select.havingExpression != nil)
+  #expect(select.qualifyExpression != nil)
   #expect(select.orderBy.count == 1)
   #expect(select.orderBy.first?.direction == .descending)
   #expect(select.limit == 5)
   #expect(select.offset == 2)
   #expect(
     StatementDeparser().deparse(select)
-      == "SELECT id, name FROM users WHERE active = 1 ORDER BY id DESC LIMIT 5 OFFSET 2"
+      == "SELECT id, name FROM users WHERE active = 1 HAVING COUNT(id) > 0 QUALIFY id > 10 ORDER BY id DESC LIMIT 5 OFFSET 2"
   )
 }
 
@@ -204,5 +206,27 @@ func pipedFromSqlSupportsJoinAndAggregateOperators() throws {
   #expect(
     StatementDeparser().deparse(select)
       == "SELECT r.name, COUNT(*) AS total FROM users u INNER JOIN roles r ON u.role_id = r.id GROUP BY r.name ORDER BY total DESC"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsStandaloneOffsetOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> OFFSET 7",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 1)
+  #expect(select.limit == nil)
+  #expect(select.offset == 7)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM users OFFSET 7"
   )
 }
