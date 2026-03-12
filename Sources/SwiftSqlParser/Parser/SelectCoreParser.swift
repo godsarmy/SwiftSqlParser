@@ -98,7 +98,7 @@ struct SelectCoreParser {
     }
 
     try consumeKeyword("FROM")
-    let from = try parseFromItem()
+    var from = try parseFromItem()
     var joins = try parseJoins()
 
     var selectItems: [any SelectItem] = [AllColumnsSelectItem()]
@@ -150,6 +150,33 @@ struct SelectCoreParser {
         continue
       }
 
+      if matchKeyword("AS") {
+        let alias = try consumeIdentifier()
+        let subquery = PlainSelect(
+          selectItems: selectItems,
+          from: from,
+          joins: joins,
+          whereExpression: whereExpression,
+          groupByExpressions: groupByExpressions,
+          havingExpression: havingExpression,
+          qualifyExpression: qualifyExpression,
+          orderBy: orderBy,
+          limit: limit,
+          offset: offset
+        )
+        from = SubqueryFromItem(statement: subquery, alias: alias)
+        joins = []
+        selectItems = [AllColumnsSelectItem()]
+        whereExpression = nil
+        groupByExpressions = []
+        havingExpression = nil
+        qualifyExpression = nil
+        orderBy = []
+        limit = nil
+        offset = nil
+        continue
+      }
+
       if isPipeJoinStart() {
         joins.append(try parseSingleJoin())
         continue
@@ -167,7 +194,8 @@ struct SelectCoreParser {
       }
 
       throw SelectParseFailure.expected(
-        "supported pipe operator (WHERE, SELECT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, JOIN, AGGREGATE)")
+        "supported pipe operator (WHERE, SELECT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE)"
+      )
     }
 
     return PlainSelect(

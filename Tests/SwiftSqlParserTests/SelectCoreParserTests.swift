@@ -210,6 +210,33 @@ func pipedFromSqlSupportsJoinAndAggregateOperators() throws {
 }
 
 @Test
+func pipedFromSqlSupportsAsOperatorBeforeJoin() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> AGGREGATE role_id, COUNT(*) AS total GROUP BY role_id |> AS grouped |> JOIN roles r ON grouped.role_id = r.id |> SELECT r.id, grouped.total",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  let subquery = select.from as? SubqueryFromItem
+  let grouped = subquery?.statement as? PlainSelect
+
+  #expect(subquery?.alias == "grouped")
+  #expect(grouped?.groupByExpressions.count == 1)
+  #expect(grouped?.selectItems.count == 2)
+  #expect(select.joins.count == 1)
+  #expect(select.selectItems.count == 2)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT r.id, grouped.total FROM (SELECT role_id, COUNT(*) AS total FROM users GROUP BY role_id) grouped INNER JOIN roles r ON grouped.role_id = r.id"
+  )
+}
+
+@Test
 func pipedFromSqlSupportsStandaloneOffsetOperator() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(
