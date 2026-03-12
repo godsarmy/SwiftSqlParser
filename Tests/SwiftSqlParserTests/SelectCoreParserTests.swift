@@ -384,3 +384,70 @@ func pipedFromSqlSupportsUnpivotOperator() throws {
       == "SELECT u.amount, u.region FROM sales UNPIVOT (amount FOR region IN (east, west)) u"
   )
 }
+
+@Test
+func pipedFromSqlSupportsExtendOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> EXTEND active = 1 AS is_active",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 2)
+  #expect(select.selectItems.first is AllColumnsSelectItem)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT *, active = 1 AS is_active FROM users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsRenameOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> RENAME name AS full_name",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let allColumns = select.selectItems.first as? AllColumnsSelectItem,
+    let renamedItem = select.selectItems.dropFirst().first as? ExpressionSelectItem
+  else {
+    Issue.record("Expected PlainSelect with renamed projection")
+    return
+  }
+
+  #expect(allColumns.exceptColumns == ["name"])
+  #expect(renamedItem.alias == "full_name")
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT * EXCEPT (name), name AS full_name FROM users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsDropOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> DROP password, deleted_at",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let allColumns = select.selectItems.first as? AllColumnsSelectItem
+  else {
+    Issue.record("Expected PlainSelect with all-columns transformer")
+    return
+  }
+
+  #expect(allColumns.exceptColumns == ["deleted_at", "password"])
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT * EXCEPT (deleted_at, password) FROM users"
+  )
+}

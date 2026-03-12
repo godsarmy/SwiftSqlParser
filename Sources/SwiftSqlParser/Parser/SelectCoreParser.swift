@@ -174,6 +174,24 @@ struct SelectCoreParser {
         continue
       }
 
+      if matchKeyword("EXTEND") {
+        ensureSelectPipeline()
+        selectItems = appendPipeSelectItems(try parseSelectItems(), to: selectItems)
+        continue
+      }
+
+      if matchKeyword("RENAME") {
+        ensureSelectPipeline()
+        selectItems = try applyPipeRename(try parseSelectItems(), to: selectItems)
+        continue
+      }
+
+      if matchKeyword("DROP") {
+        ensureSelectPipeline()
+        selectItems = try applyPipeDrop(columns: try parsePipeIdentifierList(), to: selectItems)
+        continue
+      }
+
       if matchKeyword("ORDER") {
         ensureSelectPipeline()
         try consumeKeyword("BY")
@@ -248,7 +266,7 @@ struct SelectCoreParser {
         operation = .except
       } else {
         throw SelectParseFailure.expected(
-          "supported pipe operator (WHERE, SELECT, DISTINCT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, PIVOT, UNPIVOT, UNION, INTERSECT, EXCEPT)"
+          "supported pipe operator (WHERE, SELECT, DISTINCT, EXTEND, RENAME, DROP, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, PIVOT, UNPIVOT, UNION, INTERSECT, EXCEPT)"
         )
       }
 
@@ -259,6 +277,120 @@ struct SelectCoreParser {
     }
 
     return buildCurrentStatement()
+  }
+
+  private mutating func parsePipeIdentifierList() throws -> [String] {
+    var columns: [String] = []
+
+    while true {
+      columns.append(try consumeIdentifier())
+      if match(symbol: ",") {
+        continue
+      }
+      break
+    }
+
+    return columns
+  }
+
+  private func appendPipeSelectItems(_ additions: [any SelectItem], to existing: [any SelectItem])
+    -> [any SelectItem]
+  {
+    existing + additions
+  }
+
+  private func applyPipeRename(_ renameItems: [any SelectItem], to existing: [any SelectItem])
+    throws
+    -> [any SelectItem]
+  {
+    var renamed = existing
+
+    for renameItem in renameItems {
+      guard let expressionItem = renameItem as? ExpressionSelectItem,
+        let alias = expressionItem.alias,
+        let sourceName = identifierName(from: expressionItem.expression)
+      else {
+        throw SelectParseFailure.expected("RENAME requires source_column AS new_name")
+      }
+
+      if let allColumns = renamed.first as? AllColumnsSelectItem {
+        let exceptColumns = Array(Set(allColumns.exceptColumns + [sourceName])).sorted()
+        renamed[0] = AllColumnsSelectItem(
+          exceptColumns: exceptColumns, replacements: allColumns.replacements)
+        renamed.append(ExpressionSelectItem(expression: expressionItem.expression, alias: alias))
+        continue
+      }
+
+      var didRename = false
+      renamed = renamed.compactMap { item in
+        guard let outputName = selectItemOutputName(item), outputName == sourceName else {
+          return item
+        }
+
+        didRename = true
+        if let renamedItem = item as? ExpressionSelectItem {
+          return ExpressionSelectItem(expression: renamedItem.expression, alias: alias)
+        }
+
+        return item
+      }
+
+      if didRename == false {
+        throw SelectParseFailure.expected("RENAME requires projected columns or * output")
+      }
+    }
+
+    return renamed
+  }
+
+  private func applyPipeDrop(columns: [String], to existing: [any SelectItem]) throws
+    -> [any SelectItem]
+  {
+    if let allColumns = existing.first as? AllColumnsSelectItem {
+      let exceptColumns = Array(Set(allColumns.exceptColumns + columns)).sorted()
+      var updated: [any SelectItem] = [
+        AllColumnsSelectItem(exceptColumns: exceptColumns, replacements: allColumns.replacements)
+      ]
+      updated.append(
+        contentsOf: existing.dropFirst().filter { item in
+          guard let outputName = selectItemOutputName(item) else {
+            return true
+          }
+          return columns.contains(outputName) == false
+        })
+      return updated
+    }
+
+    let filtered = existing.filter { item in
+      guard let outputName = selectItemOutputName(item) else {
+        return true
+      }
+      return columns.contains(outputName) == false
+    }
+
+    guard filtered.isEmpty == false else {
+      throw SelectParseFailure.expected("DROP cannot remove every projected column")
+    }
+
+    return filtered
+  }
+
+  private func selectItemOutputName(_ item: any SelectItem) -> String? {
+    if let expressionItem = item as? ExpressionSelectItem {
+      if let alias = expressionItem.alias {
+        return alias
+      }
+      return identifierName(from: expressionItem.expression)
+    }
+
+    return nil
+  }
+
+  private func identifierName(from expression: any Expression) -> String? {
+    guard let identifier = expression as? IdentifierExpression else {
+      return nil
+    }
+    return identifier.name.split(separator: ".").last.map(String.init)
   }
 
   private func isPipeJoinStart() -> Bool {

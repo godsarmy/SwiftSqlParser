@@ -240,6 +240,9 @@ Piped SQL (`FROM`-led pipelines) is currently experimental and supports:
 - `FROM ... |> WHERE ...`
 - `FROM ... |> SELECT ...`
 - `FROM ... |> DISTINCT`
+- `FROM ... |> EXTEND ...`
+- `FROM ... |> RENAME ...`
+- `FROM ... |> DROP ...`
 - `FROM ... |> HAVING ...`
 - `FROM ... |> QUALIFY ...`
 - `FROM ... |> ORDER BY ...`
