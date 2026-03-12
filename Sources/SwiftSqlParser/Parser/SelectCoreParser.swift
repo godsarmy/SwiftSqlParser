@@ -92,7 +92,7 @@ struct SelectCoreParser {
     return try parsePlainSelect()
   }
 
-  private mutating func parsePipedFromStatement() throws -> PlainSelect {
+  private mutating func parsePipedFromStatement() throws -> any Statement {
     guard options.experimentalFeatures.contains(.pipedSql) else {
       throw SelectParseFailure.expected("Piped SQL requires experimental pipedSql feature")
     }
@@ -101,6 +101,7 @@ struct SelectCoreParser {
     var from = try parseFromItem()
     var joins = try parseJoins()
 
+    var isDistinct = false
     var selectItems: [any SelectItem] = [AllColumnsSelectItem()]
     var whereExpression: (any Expression)?
     var groupByExpressions: [any Expression] = []
@@ -109,35 +110,91 @@ struct SelectCoreParser {
     var orderBy: [OrderByElement] = []
     var limit: Int?
     var offset: Int?
+    var statement: (any Statement)?
+
+    func buildPlainSelect() -> PlainSelect {
+      PlainSelect(
+        isDistinct: isDistinct,
+        selectItems: selectItems,
+        from: from,
+        joins: joins,
+        whereExpression: whereExpression,
+        groupByExpressions: groupByExpressions,
+        havingExpression: havingExpression,
+        qualifyExpression: qualifyExpression,
+        orderBy: orderBy,
+        limit: limit,
+        offset: offset
+      )
+    }
+
+    func buildCurrentStatement() -> any Statement {
+      statement ?? buildPlainSelect()
+    }
+
+    func resetSelectPipeline(with fromItem: any FromItem) {
+      from = fromItem
+      joins = []
+      isDistinct = false
+      selectItems = [AllColumnsSelectItem()]
+      whereExpression = nil
+      groupByExpressions = []
+      havingExpression = nil
+      qualifyExpression = nil
+      orderBy = []
+      limit = nil
+      offset = nil
+      statement = nil
+    }
+
+    func ensureSelectPipeline() {
+      guard statement != nil else {
+        return
+      }
+
+      resetSelectPipeline(with: SubqueryFromItem(statement: buildCurrentStatement()))
+    }
 
     while match(symbol: "|>") {
       if matchKeyword("WHERE") {
+        ensureSelectPipeline()
         whereExpression = try parseExpression()
         continue
       }
 
       if matchKeyword("SELECT") {
+        ensureSelectPipeline()
         selectItems = try parseSelectItems()
         continue
       }
 
+      if matchKeyword("DISTINCT") {
+        ensureSelectPipeline()
+        isDistinct = true
+        continue
+      }
+
       if matchKeyword("ORDER") {
+        ensureSelectPipeline()
         try consumeKeyword("BY")
         orderBy = try parseOrderByElements()
         continue
       }
 
       if matchKeyword("HAVING") {
+        ensureSelectPipeline()
         havingExpression = try parseExpression()
         continue
       }
 
       if matchKeyword("QUALIFY") {
+        ensureSelectPipeline()
         qualifyExpression = try parseExpression()
         continue
       }
 
       if matchKeyword("LIMIT") {
+        ensureSelectPipeline()
         limit = try consumeIntegerLiteral()
         if matchKeyword("OFFSET") {
           offset = try consumeIntegerLiteral()
@@ -146,43 +203,26 @@ struct SelectCoreParser {
       }
 
       if matchKeyword("OFFSET") {
+        ensureSelectPipeline()
         offset = try consumeIntegerLiteral()
         continue
       }
 
       if matchKeyword("AS") {
         let alias = try consumeIdentifier()
-        let subquery = PlainSelect(
-          selectItems: selectItems,
-          from: from,
-          joins: joins,
-          whereExpression: whereExpression,
-          groupByExpressions: groupByExpressions,
-          havingExpression: havingExpression,
-          qualifyExpression: qualifyExpression,
-          orderBy: orderBy,
-          limit: limit,
-          offset: offset
-        )
-        from = SubqueryFromItem(statement: subquery, alias: alias)
-        joins = []
-        selectItems = [AllColumnsSelectItem()]
-        whereExpression = nil
-        groupByExpressions = []
-        havingExpression = nil
-        qualifyExpression = nil
-        orderBy = []
-        limit = nil
-        offset = nil
+        resetSelectPipeline(
+          with: SubqueryFromItem(statement: buildCurrentStatement(), alias: alias))
         continue
       }
 
       if isPipeJoinStart() {
+        ensureSelectPipeline()
         joins.append(try parseSingleJoin())
         continue
       }
 
       if matchKeyword("AGGREGATE") {
+        ensureSelectPipeline()
         selectItems = try parseSelectItems()
         if matchKeyword("GROUP") {
           try consumeKeyword("BY")
@@ -193,23 +233,26 @@ struct SelectCoreParser {
         continue
       }
 
-      throw SelectParseFailure.expected(
-        "supported pipe operator (WHERE, SELECT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE)"
-      )
+      let operation: SetOperationSelect.Operation
+      if matchKeyword("UNION") {
+        operation = .union
+      } else if matchKeyword("INTERSECT") {
+        operation = .intersect
+      } else if matchKeyword("EXCEPT") {
+        operation = .except
+      } else {
+        throw SelectParseFailure.expected(
+          "supported pipe operator (WHERE, SELECT, DISTINCT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, UNION, INTERSECT, EXCEPT)"
+        )
+      }
+
+      let isAll = matchKeyword("ALL")
+      let lhs = buildCurrentStatement()
+      let rhs = try parsePrimarySelectStatement()
+      statement = SetOperationSelect(left: lhs, operation: operation, isAll: isAll, right: rhs)
     }
 
-    return PlainSelect(
-      selectItems: selectItems,
-      from: from,
-      joins: joins,
-      whereExpression: whereExpression,
-      groupByExpressions: groupByExpressions,
-      havingExpression: havingExpression,
-      qualifyExpression: qualifyExpression,
-      orderBy: orderBy,
-      limit: limit,
-      offset: offset
-    )
+    return buildCurrentStatement()
   }
 
   private func isPipeJoinStart() -> Bool {

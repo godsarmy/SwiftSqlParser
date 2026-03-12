@@ -48,10 +48,10 @@ Status legend:
 |---|---|---|
 | PostgreSQL Row Level Security | implemented | `CREATE POLICY` and `ALTER TABLE ... ENABLE/DISABLE/FORCE/NO FORCE ROW LEVEL SECURITY` supported. |
 | SOQL `INCLUDES` / `EXCLUDES` | implemented | Dialect-gated under `.salesforceSoql`. |
-| Piped SQL (FROM SQL) | partial | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE`. Additional operators remain. |
+| Piped SQL (FROM SQL) | partial | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/DISTINCT/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE/UNION/INTERSECT/EXCEPT`. Additional operators remain. |
 
 ## Next Recommended Work
 
-1. Expand Piped SQL operators for closer upstream parity.
+1. Expand remaining Piped SQL operators for closer upstream parity.
 2. Add dialect-focused conformance tests for `duckDB`, `redshift`, `db2`, `h2`, `hsqldb`, `derby`, and deeper `sqlite` behavior.
 3. Add more vendor-specific DDL variants under explicit flags where needed.

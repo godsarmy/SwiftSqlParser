@@ -257,3 +257,76 @@ func pipedFromSqlSupportsStandaloneOffsetOperator() throws {
       == "SELECT id FROM users OFFSET 7"
   )
 }
+
+@Test
+func pipedFromSqlSupportsDistinctOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT department_id |> DISTINCT |> ORDER BY department_id",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.isDistinct)
+  #expect(select.selectItems.count == 1)
+  #expect(select.orderBy.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT DISTINCT department_id FROM users ORDER BY department_id"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsUnionAllOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> UNION ALL SELECT id FROM archived_users",
+    options: options
+  )
+
+  guard let setOperation = parsed as? SetOperationSelect,
+    let left = setOperation.left as? PlainSelect,
+    let right = setOperation.right as? PlainSelect
+  else {
+    Issue.record("Expected SetOperationSelect")
+    return
+  }
+
+  #expect(setOperation.operation == .union)
+  #expect(setOperation.isAll)
+  #expect(left.selectItems.count == 1)
+  #expect(right.selectItems.count == 1)
+  #expect(
+    StatementDeparser().deparse(setOperation)
+      == "SELECT id FROM users UNION ALL SELECT id FROM archived_users"
+  )
+}
+
+@Test
+func pipedFromSqlCanContinueAfterSetOperation() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> UNION SELECT id FROM archived_users |> AS combined |> WHERE combined.id > 10",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let from = select.from as? SubqueryFromItem,
+    let setOperation = from.statement as? SetOperationSelect
+  else {
+    Issue.record("Expected PlainSelect over subquery set operation")
+    return
+  }
+
+  #expect(from.alias == "combined")
+  #expect(setOperation.operation == .union)
+  #expect(select.whereExpression != nil)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT * FROM (SELECT id FROM users UNION SELECT id FROM archived_users) combined WHERE combined.id > 10"
+  )
+}
