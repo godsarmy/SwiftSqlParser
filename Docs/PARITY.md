@@ -48,7 +48,7 @@ Status legend:
 |---|---|---|
 | PostgreSQL Row Level Security | implemented | `CREATE POLICY` and `ALTER TABLE ... ENABLE/DISABLE/FORCE/NO FORCE ROW LEVEL SECURITY` supported. |
 | SOQL `INCLUDES` / `EXCLUDES` | implemented | Dialect-gated under `.salesforceSoql`. |
-| Piped SQL (FROM SQL) | partial | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/DISTINCT/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE/UNION/INTERSECT/EXCEPT`. Additional operators remain. |
+| Piped SQL (FROM SQL) | partial | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/DISTINCT/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE/PIVOT/UNPIVOT/UNION/INTERSECT/EXCEPT`. Additional operators remain. |
 
 ## Next Recommended Work
 

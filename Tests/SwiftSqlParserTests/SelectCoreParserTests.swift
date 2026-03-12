@@ -330,3 +330,57 @@ func pipedFromSqlCanContinueAfterSetOperation() throws {
       == "SELECT * FROM (SELECT id FROM users UNION SELECT id FROM archived_users) combined WHERE combined.id > 10"
   )
 }
+
+@Test
+func pipedFromSqlSupportsPivotOperator() throws {
+  let options = ParserOptions(
+    dialectFeatures: [.sqlServer],
+    experimentalFeatures: [.pipedSql, .pivotSyntax]
+  )
+  let parsed = try parseStatement(
+    "FROM sales |> PIVOT (SUM(amount) FOR region IN ('EAST' east, 'WEST' west)) p |> SELECT p.id",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let pivot = select.from as? PivotFromItem
+  else {
+    Issue.record("Expected PlainSelect with PivotFromItem")
+    return
+  }
+
+  #expect(pivot.alias == "p")
+  #expect(pivot.values.count == 2)
+  #expect(select.selectItems.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT p.id FROM sales PIVOT (SUM(amount) FOR region IN ('EAST' AS east, 'WEST' AS west)) p"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsUnpivotOperator() throws {
+  let options = ParserOptions(
+    dialectFeatures: [.sqlServer],
+    experimentalFeatures: [.pipedSql, .pivotSyntax]
+  )
+  let parsed = try parseStatement(
+    "FROM sales |> UNPIVOT (amount FOR region IN (east, west)) u |> SELECT u.amount, u.region",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let unpivot = select.from as? UnpivotFromItem
+  else {
+    Issue.record("Expected PlainSelect with UnpivotFromItem")
+    return
+  }
+
+  #expect(unpivot.alias == "u")
+  #expect(unpivot.columns == ["east", "west"])
+  #expect(select.selectItems.count == 2)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT u.amount, u.region FROM sales UNPIVOT (amount FOR region IN (east, west)) u"
+  )
+}

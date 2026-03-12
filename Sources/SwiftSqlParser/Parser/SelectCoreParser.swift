@@ -233,6 +233,12 @@ struct SelectCoreParser {
         continue
       }
 
+      if checkKeyword("PIVOT") || checkKeyword("UNPIVOT") {
+        ensureSelectPipeline()
+        from = try parsePivotOrUnpivotIfPresent(source: from)
+        continue
+      }
+
       let operation: SetOperationSelect.Operation
       if matchKeyword("UNION") {
         operation = .union
@@ -242,7 +248,7 @@ struct SelectCoreParser {
         operation = .except
       } else {
         throw SelectParseFailure.expected(
-          "supported pipe operator (WHERE, SELECT, DISTINCT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, UNION, INTERSECT, EXCEPT)"
+          "supported pipe operator (WHERE, SELECT, DISTINCT, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, PIVOT, UNPIVOT, UNION, INTERSECT, EXCEPT)"
         )
       }
 

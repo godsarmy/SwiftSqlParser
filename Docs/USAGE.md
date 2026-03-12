@@ -248,6 +248,8 @@ Piped SQL (`FROM`-led pipelines) is currently experimental and supports:
 - `FROM ... |> AS alias`
 - `FROM ... |> JOIN ...` (including join variants)
 - `FROM ... |> AGGREGATE ... [GROUP BY ...]`
+- `FROM ... |> PIVOT ...`
+- `FROM ... |> UNPIVOT ...`
 - `FROM ... |> UNION|INTERSECT|EXCEPT ...`
 
 Some syntax paths require both a dialect flag and an experimental flag.
