@@ -29,7 +29,7 @@ struct SwiftSqlParserCLIMain {
   }
 
   private static func runStatement(input: String, configuration: CLIConfiguration) {
-    let result = SqlParser().parseStatementResult(input)
+    let result = SqlParser().parseStatementResult(input, options: configuration.parserOptions)
     if let diagnostic = result.diagnostic {
       printDiagnostic(diagnostic)
       Foundation.exit(1)
@@ -44,7 +44,7 @@ struct SwiftSqlParserCLIMain {
   }
 
   private static func runScript(input: String, configuration: CLIConfiguration) {
-    let result = parseScript(input)
+    let result = parseScript(input, options: configuration.parserOptions)
     if let diagnostic = result.diagnostics.first {
       printDiagnostic(diagnostic)
       Foundation.exit(1)
@@ -102,37 +102,100 @@ struct SwiftSqlParserCLIMain {
 private struct CLIConfiguration {
   let scriptMode: Bool
   let jsonOutput: Bool
+  let parserOptions: ParserOptions
 
   init(arguments: [String]) throws {
     var scriptMode = false
     var jsonOutput = false
+    var dialectFeatures: Set<DialectFeature> = []
 
-    for argument in arguments {
+    var index = 0
+    while index < arguments.count {
+      let argument = arguments[index]
       switch argument {
       case "--script":
         scriptMode = true
       case "--json":
         jsonOutput = true
+      case "--dialect":
+        index += 1
+        guard index < arguments.count else {
+          throw CLIError.usage("Missing value for --dialect\n\n\(Self.usage)")
+        }
+        let rawValue = arguments[index]
+        guard let dialect = DialectFeature(cliValue: rawValue) else {
+          throw CLIError.usage(
+            "Unknown dialect: \(rawValue)\nSupported dialects: \(DialectFeature.cliValues.joined(separator: ", "))\n\n\(Self.usage)"
+          )
+        }
+        dialectFeatures.insert(dialect)
       case "--help", "-h":
         throw CLIError.usage(Self.usage)
       default:
         throw CLIError.usage("Unknown argument: \(argument)\n\n\(Self.usage)")
       }
+      index += 1
     }
 
     self.scriptMode = scriptMode
     self.jsonOutput = jsonOutput
+    self.parserOptions = ParserOptions(dialectFeatures: dialectFeatures)
   }
 
   private static let usage = """
-    Usage: swift run SwiftSqlParserCLI [--script] [--json]
+    Usage: swift run SwiftSqlParserCLI [--script] [--json] [--dialect <name>]
 
     Reads SQL from stdin.
 
       --script   Parse stdin as a script and dump the script parse result
       --json     Emit the parsed structure as pretty-printed JSON
+      --dialect  Enable a dialect feature (repeatable). Supported: \(DialectFeature.cliValues.joined(separator: ", "))
       --help     Show this message
     """
+}
+
+extension DialectFeature {
+  fileprivate init?(cliValue: String) {
+    let normalized = cliValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    switch normalized {
+    case "postgres": self = .postgres
+    case "mysql": self = .mysql
+    case "mariadb": self = .mariaDB
+    case "sqlserver": self = .sqlServer
+    case "sybase": self = .sybase
+    case "oracle": self = .oracle
+    case "bigquery": self = .bigQuery
+    case "snowflake": self = .snowflake
+    case "duckdb": self = .duckDB
+    case "redshift": self = .redshift
+    case "db2": self = .db2
+    case "h2": self = .h2
+    case "hsqldb": self = .hsqldb
+    case "derby": self = .derby
+    case "sqlite": self = .sqlite
+    case "salesforcesoql": self = .salesforceSoql
+    default: return nil
+    }
+  }
+
+  fileprivate static let cliValues: [String] = [
+    "postgres",
+    "mysql",
+    "mariadb",
+    "sqlserver",
+    "sybase",
+    "oracle",
+    "bigquery",
+    "snowflake",
+    "duckdb",
+    "redshift",
+    "db2",
+    "h2",
+    "hsqldb",
+    "derby",
+    "sqlite",
+    "salesforcesoql",
+  ]
 }
 
 private enum CLIError: Error {

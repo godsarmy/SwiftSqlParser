@@ -72,13 +72,16 @@ The repository also ships a simple CLI for local inspection:
 ```bash
 echo "SELECT * FROM users" | swift run SwiftSqlParserCLI
 echo "SELECT * FROM users" | swift run SwiftSqlParserCLI --json
+echo "SELECT id FROM users t AT ('2024-01-01')" | swift run SwiftSqlParserCLI --dialect snowflake
 printf "SELECT * FROM users\nGO\nSELECT * FROM roles\n" | swift run SwiftSqlParserCLI --script
 ```
 
 - reads SQL from stdin
 - dumps parsed structures in a human-readable tree by default
+- accepts repeatable `--dialect <name>` flags for dialect-specific parsing
 - supports `--json` for machine-readable output
 - prints parse diagnostics to stderr and exits non-zero on failure
+- only exposes dialect flags; syntax that also needs experimental flags still uses the library API
 
 ## Documentation
 

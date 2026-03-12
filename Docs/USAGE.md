@@ -59,6 +59,7 @@ For local inspection, use the bundled CLI executable:
 ```bash
 echo "SELECT * FROM users" | swift run SwiftSqlParserCLI
 echo "SELECT * FROM users" | swift run SwiftSqlParserCLI --json
+echo "SELECT id FROM users t AT ('2024-01-01')" | swift run SwiftSqlParserCLI --dialect snowflake
 printf "SELECT * FROM users\nGO\nSELECT * FROM roles\n" | swift run SwiftSqlParserCLI --script
 ```
 
@@ -67,8 +68,13 @@ Behavior:
 - reads SQL from stdin
 - parses a single statement by default
 - uses `--script` to parse multi-statement input with script delimiters
+- accepts repeatable `--dialect <name>` flags to enable dialect-specific parsing in the CLI
 - emits a human-readable tree by default or pretty-printed JSON with `--json`
 - prints parse diagnostics to stderr and exits non-zero on failure
+
+Supported CLI dialect names use lowercase CLI forms such as `postgres`, `mysql`, `mariadb`, `sqlserver`, `bigquery`, and `snowflake`.
+
+The CLI currently exposes `ParserOptions.dialectFeatures`; syntax that also requires experimental flags still needs the library API.
 
 ## Parse a Statement
 
