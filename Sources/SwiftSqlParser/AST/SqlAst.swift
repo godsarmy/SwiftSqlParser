@@ -1152,6 +1152,27 @@ public struct ExpressionSelectItem: SelectItem, Sendable, Equatable {
   }
 }
 
+public struct TableSampleFromItem: FromItem, Sendable, Equatable {
+  public let source: any FromItem
+  public let method: String
+  public let size: String
+  public let unit: String
+
+  public init(source: any FromItem, method: String, size: String, unit: String) {
+    self.source = source
+    self.method = method
+    self.size = size
+    self.unit = unit
+  }
+
+  public static func == (lhs: TableSampleFromItem, rhs: TableSampleFromItem) -> Bool {
+    lhs.method == rhs.method
+      && lhs.size == rhs.size
+      && lhs.unit == rhs.unit
+      && String(describing: type(of: lhs.source)) == String(describing: type(of: rhs.source))
+  }
+}
+
 public struct TableFromItem: FromItem, Sendable, Equatable {
   public let name: String
   public let timeTravelClause: String?

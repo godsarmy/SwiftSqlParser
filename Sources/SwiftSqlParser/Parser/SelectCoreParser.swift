@@ -257,6 +257,12 @@ struct SelectCoreParser {
         continue
       }
 
+      if checkKeyword("TABLESAMPLE") {
+        ensureSelectPipeline()
+        from = try parseTableSampleIfPresent(source: from)
+        continue
+      }
+
       let operation: SetOperationSelect.Operation
       if matchKeyword("UNION") {
         operation = .union
@@ -266,7 +272,7 @@ struct SelectCoreParser {
         operation = .except
       } else {
         throw SelectParseFailure.expected(
-          "supported pipe operator (WHERE, SELECT, DISTINCT, EXTEND, RENAME, DROP, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, PIVOT, UNPIVOT, UNION, INTERSECT, EXCEPT)"
+          "supported pipe operator (WHERE, SELECT, DISTINCT, EXTEND, RENAME, DROP, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, PIVOT, UNPIVOT, TABLESAMPLE, UNION, INTERSECT, EXCEPT)"
         )
       }
 
@@ -649,7 +655,7 @@ struct SelectCoreParser {
 
     let keywordBoundary = [
       "FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON", "USING", "APPLY",
-      "PIVOT", "UNPIVOT",
+      "PIVOT", "UNPIVOT", "TABLESAMPLE",
       "UNION", "INTERSECT", "EXCEPT", "ALL", "GROUP", "HAVING", "QUALIFY", "ORDER", "LIMIT",
       "OFFSET", "AT", "BEFORE", "CHANGES", "FOR",
     ]
@@ -686,7 +692,21 @@ struct SelectCoreParser {
       )
     }
 
-    return try parsePivotOrUnpivotIfPresent(source: fromItem)
+    let pivoted = try parsePivotOrUnpivotIfPresent(source: fromItem)
+    return try parseTableSampleIfPresent(source: pivoted)
+  }
+
+  private mutating func parseTableSampleIfPresent(source: any FromItem) throws -> any FromItem {
+    guard matchKeyword("TABLESAMPLE") else {
+      return source
+    }
+
+    let method = try consumeIdentifier()
+    try consumeSymbol("(")
+    let size = try consumeNumberLiteralText()
+    let unit = try consumeIdentifier()
+    try consumeSymbol(")")
+    return TableSampleFromItem(source: source, method: method, size: size, unit: unit)
   }
 
   private mutating func parsePivotOrUnpivotIfPresent(source: any FromItem) throws -> any FromItem {
@@ -1500,6 +1520,14 @@ struct SelectCoreParser {
     }
     _ = advance()
     return value
+  }
+
+  private mutating func consumeNumberLiteralText() throws -> String {
+    guard let token = peek(), token.kind == .number else {
+      throw SelectParseFailure.expected("number")
+    }
+    _ = advance()
+    return token.text
   }
 
   private mutating func consumeStringIfPresent() -> String? {

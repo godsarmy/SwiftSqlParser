@@ -451,3 +451,48 @@ func pipedFromSqlSupportsDropOperator() throws {
       == "SELECT * EXCEPT (deleted_at, password) FROM users"
   )
 }
+
+@Test
+func standardFromTableSampleParses() throws {
+  let parsed = try parseStatement("SELECT id FROM users TABLESAMPLE SYSTEM (1.0 PERCENT)")
+
+  guard let select = parsed as? PlainSelect,
+    let tableSample = select.from as? TableSampleFromItem
+  else {
+    Issue.record("Expected PlainSelect with TableSampleFromItem")
+    return
+  }
+
+  #expect(tableSample.method == "SYSTEM")
+  #expect(tableSample.size == "1.0")
+  #expect(tableSample.unit == "PERCENT")
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM users TABLESAMPLE SYSTEM (1.0 PERCENT)"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsTableSampleOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> TABLESAMPLE SYSTEM (1.0 PERCENT) |> SELECT id",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let tableSample = select.from as? TableSampleFromItem
+  else {
+    Issue.record("Expected PlainSelect with TableSampleFromItem")
+    return
+  }
+
+  #expect(tableSample.method == "SYSTEM")
+  #expect(tableSample.size == "1.0")
+  #expect(tableSample.unit == "PERCENT")
+  #expect(select.selectItems.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM users TABLESAMPLE SYSTEM (1.0 PERCENT)"
+  )
+}

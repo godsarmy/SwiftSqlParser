@@ -139,6 +139,8 @@ private struct Collector {
 
   mutating func visit(fromItem: any FromItem) {
     switch fromItem {
+    case let tableSample as TableSampleFromItem:
+      visit(fromItem: tableSample.source)
     case let table as TableFromItem:
       if let alias = table.alias {
         aliases.insert(alias)

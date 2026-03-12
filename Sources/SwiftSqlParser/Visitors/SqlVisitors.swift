@@ -93,6 +93,7 @@ extension ExpressionVisitor {
 }
 
 public protocol FromItemVisitor {
+  mutating func visit(tableSampleFromItem: TableSampleFromItem)
   mutating func visit(tableFromItem: TableFromItem)
   mutating func visit(subqueryFromItem: SubqueryFromItem)
   mutating func visit(pivotFromItem: PivotFromItem)
@@ -100,6 +101,7 @@ public protocol FromItemVisitor {
 }
 
 extension FromItemVisitor {
+  public mutating func visit(tableSampleFromItem: TableSampleFromItem) {}
   public mutating func visit(tableFromItem: TableFromItem) {}
   public mutating func visit(subqueryFromItem: SubqueryFromItem) {}
   public mutating func visit(pivotFromItem: PivotFromItem) {}
@@ -327,6 +329,11 @@ public enum AstVisit {
   }
 
   public static func fromItem<V: FromItemVisitor>(_ fromItem: any FromItem, visitor: inout V) {
+    if let tableSample = fromItem as? TableSampleFromItem {
+      visitor.visit(tableSampleFromItem: tableSample)
+      return
+    }
+
     if let table = fromItem as? TableFromItem {
       visitor.visit(tableFromItem: table)
       return

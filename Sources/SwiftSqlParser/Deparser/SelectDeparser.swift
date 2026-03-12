@@ -145,6 +145,11 @@ public struct SelectDeparser {
   }
 
   func deparseFromItem(_ item: any FromItem) -> String {
+    if let tableSample = item as? TableSampleFromItem {
+      return
+        "\(deparseFromItem(tableSample.source)) TABLESAMPLE \(tableSample.method) (\(tableSample.size) \(tableSample.unit))"
+    }
+
     if let table = item as? TableFromItem {
       let lateral = table.isLateral ? "LATERAL " : ""
       let timeTravelClause = table.timeTravelClause.map { " \($0)" } ?? ""
