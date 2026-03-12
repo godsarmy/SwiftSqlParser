@@ -20,18 +20,34 @@ Then add the product to your target dependencies:
 
 ## Features
 
-- Core query support: `SELECT`, `WITH`/CTE, `VALUES`, set operations, joins, `GROUP BY`, `HAVING`, `QUALIFY`, window functions, `ORDER BY`, `LIMIT`, `OFFSET`
-- DML support: `INSERT`, `UPDATE`, `DELETE`, dialect-gated `MERGE`, MySQL `REPLACE`, `RETURNING`, `ON CONFLICT`, `ON DUPLICATE KEY UPDATE`
-- DDL support: `CREATE TABLE`, `CREATE INDEX`, `CREATE VIEW`, `ALTER TABLE`, `DROP TABLE`, `TRUNCATE`
-- Utility statements: `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
-- Option-driven dialect extensions including Postgres `ILIKE` / `DISTINCT ON`, SQL Server `TOP`, Oracle alternative quoting, quoted identifiers, and dialect-gated `PIVOT` / `UNPIVOT`
-- Script parsing supports delimiter-aware splitting, parse-error recovery, and unsupported-statement recovery
-- Default script separators include `;`, `GO`, `/`, and double-blank-line boundaries; `GO` and `/` are treated as delimiter lines
-- Non-throwing result APIs are available through `parseStatementResult(...)` and `parseStatementsResult(...)`
-- Ecosystem utilities include visitors/deparsers plus `TableNameFinder` for statements and expressions
-- The test suite includes upstream-aligned JSqlParser-derived coverage plus curated SQL corpora for supported syntax and recovery stress tests
+- Query parsing
+  - `SELECT`, `WITH` / CTE, `VALUES`, set operations, joins, `GROUP BY`, `HAVING`, `QUALIFY`, window functions, `ORDER BY`, `LIMIT`, `OFFSET`
+- Write statements
+  - `INSERT`, `UPDATE`, `DELETE`, dialect-gated `MERGE`, MySQL `REPLACE`, `RETURNING`, `ON CONFLICT`, `ON DUPLICATE KEY UPDATE`
+- Schema statements
+  - `CREATE TABLE`, `CREATE INDEX`, `CREATE VIEW`, `ALTER TABLE`, `DROP TABLE`, `TRUNCATE`
+- Utility statements
+  - `EXPLAIN`, `SHOW`, `SET`, `RESET`, `USE`
+- Dialect-aware options
+  - Postgres `ILIKE` and `DISTINCT ON`
+  - SQL Server `TOP`
+  - Oracle alternative quoting
+  - Quoted identifiers
+  - Dialect-gated `PIVOT` / `UNPIVOT`
+- Script and recovery support
+  - delimiter-aware script splitting with parse-error and unsupported-statement recovery
+  - default separators include `;`, `GO`, `/`, and double-blank-line boundaries; `GO` and `/` act as delimiter lines
+- Parsing APIs
+  - throwing entry points plus non-throwing results through `parseStatementResult(...)` and `parseStatementsResult(...)`
+- Utilities and tooling
+  - visitors, deparsers, and `TableNameFinder` for statements and expressions
+  - upstream-aligned JSqlParser-derived tests plus curated SQL corpora for syntax and recovery coverage
 
 ## Quick Start
+
+- Configure dialect and experimental behavior through `ParserOptions`
+- Use the throwing parse APIs for typed ASTs and the result APIs when you want diagnostics without throwing
+- Reach for `TableNameFinder` when you need quick table discovery from statements or expressions
 
 ```swift
 import SwiftSqlParser
@@ -60,6 +76,12 @@ let expressionTables = TableNameFinder().find(in: BinaryExpression(
 ))
 ```
 
+- `statement` parses a single SQL statement with Postgres-specific options enabled
+- `statements` parses a delimiter-separated batch
+- `script` keeps going with recovery enabled and collects diagnostics for unsupported or invalid chunks
+- `statementResult` and `statementsResult` expose non-throwing parse flows
+- `utility`, `tables`, and `expressionTables` show the AST and utility layer around the core parser
+
 ## Development
 
 - Run tests: `swift test`
@@ -69,6 +91,11 @@ let expressionTables = TableNameFinder().find(in: BinaryExpression(
 
 The repository also ships a simple CLI for local inspection:
 
+- Parse a single statement from stdin by default
+- Add `--json` for machine-readable output
+- Add repeatable `--dialect <name>` flags for dialect-specific parsing
+- Use `--script` for multi-statement input split by script separators
+
 ```bash
 echo "SELECT * FROM users" | swift run SwiftSqlParserCLI
 echo "SELECT * FROM users" | swift run SwiftSqlParserCLI --json
@@ -76,12 +103,9 @@ echo "SELECT id FROM users t AT ('2024-01-01')" | swift run SwiftSqlParserCLI --
 printf "SELECT * FROM users\nGO\nSELECT * FROM roles\n" | swift run SwiftSqlParserCLI --script
 ```
 
-- reads SQL from stdin
-- dumps parsed structures in a human-readable tree by default
-- accepts repeatable `--dialect <name>` flags for dialect-specific parsing
-- supports `--json` for machine-readable output
-- prints parse diagnostics to stderr and exits non-zero on failure
-- only exposes dialect flags; syntax that also needs experimental flags still uses the library API
+- Reads SQL from stdin and prints a human-readable tree by default
+- Prints parse diagnostics to stderr and exits non-zero on failure
+- Exposes dialect flags only; syntax that also needs experimental flags still uses the library API
 
 ## Documentation
 
