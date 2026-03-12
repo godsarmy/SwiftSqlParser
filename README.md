@@ -8,7 +8,7 @@ Add the package in Swift Package Manager:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/godsarmy/SwiftSqlParser.git", from: "1.0.3")
+    .package(url: "https://github.com/godsarmy/SwiftSqlParser.git", from: "1.0.4")
 ]
 ```
 
