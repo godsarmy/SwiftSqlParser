@@ -48,10 +48,10 @@ Status legend:
 |---|---|---|
 | PostgreSQL Row Level Security | implemented | `CREATE POLICY` and `ALTER TABLE ... ENABLE/DISABLE/FORCE/NO FORCE ROW LEVEL SECURITY` supported. |
 | SOQL `INCLUDES` / `EXCLUDES` | implemented | Dialect-gated under `.salesforceSoql`. |
-| Piped SQL (FROM SQL) | partial | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/DISTINCT/EXTEND/RENAME/DROP/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE/PIVOT/UNPIVOT/TABLESAMPLE/UNION/INTERSECT/EXCEPT`. Additional operators remain. |
+| Piped SQL (FROM SQL) | implemented | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/SEL/WINDOW/DISTINCT/EXTEND/RENAME/SET/DROP/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE/CALL/PIVOT/UNPIVOT/TABLESAMPLE/UNION/INTERSECT/EXCEPT`, including richer set-op modifiers and expression-based piped pagination. |
 
 ## Next Recommended Work
 
-1. Expand remaining Piped SQL operators for closer upstream parity.
-2. Add dialect-focused conformance tests for `duckDB`, `redshift`, `db2`, `h2`, `hsqldb`, `derby`, and deeper `sqlite` behavior.
-3. Add more vendor-specific DDL variants under explicit flags where needed.
+1. Add dialect-focused conformance tests for `duckDB`, `redshift`, `db2`, `h2`, `hsqldb`, `derby`, and deeper `sqlite` behavior.
+2. Add more vendor-specific DDL variants under explicit flags where needed.
+3. Verify whether upstream `TABLE SAMPLE` spelling should also be accepted alongside the current `TABLESAMPLE` tokenization path.
