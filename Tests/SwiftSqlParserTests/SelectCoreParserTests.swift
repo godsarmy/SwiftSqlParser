@@ -368,6 +368,18 @@ func pipedFromSqlSupportsCallOperator() throws {
 }
 
 @Test
+func pipedFromSqlCallRejectsNonFunctionExpression() {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+
+  #expect(throws: SqlParseError.self) {
+    _ = try parseStatement(
+      "FROM users |> CALL user_id",
+      options: options
+    )
+  }
+}
+
+@Test
 func pipedFromSqlSupportsUnionDistinctModifier() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(
@@ -446,6 +458,7 @@ func pipedFromSqlSupportsAggregateInlineOrderByOutputAlias() throws {
 
   #expect(select.selectItems.count == 1)
   #expect(select.orderBy.count == 1)
+  #expect(select.orderBy.first?.direction == .descending)
   #expect(
     StatementDeparser().deparse(select)
       == "SELECT COUNT(*) AS total FROM users ORDER BY total DESC"
@@ -494,6 +507,18 @@ func pipedFromSqlSupportsAggregateGroupAndOrderShorthand() throws {
     StatementDeparser().deparse(select)
       == "SELECT department_id, COUNT(*) AS total FROM users GROUP BY department_id ORDER BY department_id"
   )
+}
+
+@Test
+func pipedFromSqlAggregateOrderingRejectsWildcardProjection() {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+
+  #expect(throws: SqlParseError.self) {
+    _ = try parseStatement(
+      "FROM users |> AGGREGATE * DESC",
+      options: options
+    )
+  }
 }
 
 @Test
@@ -556,6 +581,10 @@ func pipedFromSqlPreservesIntegerLimitValues() throws {
   #expect(select.limitExpression == nil)
   #expect(select.offset == 2)
   #expect(select.offsetExpression == nil)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM users LIMIT 5 OFFSET 2"
+  )
 }
 
 @Test
@@ -728,6 +757,18 @@ func pipedFromSqlSupportsDropOperator() throws {
     StatementDeparser().deparse(select)
       == "SELECT * EXCEPT (deleted_at, password) FROM users"
   )
+}
+
+@Test
+func pipedFromSqlSetRejectsMissingProjectedColumn() {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+
+  #expect(throws: SqlParseError.self) {
+    _ = try parseStatement(
+      "FROM users |> SELECT id |> SET name = UPPER(name)",
+      options: options
+    )
+  }
 }
 
 @Test
