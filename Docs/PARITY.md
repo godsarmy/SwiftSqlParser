@@ -46,6 +46,7 @@ Status legend:
 
 | Feature | Status | Notes |
 |---|---|---|
+| `WITH` / CTE syntax | implemented | `WITH ... AS (...) SELECT ...` parsing is supported (including multiple CTE entries) via `WithSelect` and `CommonTableExpression`, with parser/deparser coverage and tests. |
 | PostgreSQL Row Level Security | implemented | `CREATE POLICY` and `ALTER TABLE ... ENABLE/DISABLE/FORCE/NO FORCE ROW LEVEL SECURITY` supported. |
 | SOQL `INCLUDES` / `EXCLUDES` | implemented | Dialect-gated under `.salesforceSoql`. |
 | Piped SQL (FROM SQL) | implemented | Experimental `.pipedSql`; supports `FROM ... |> WHERE/SELECT/SEL/WINDOW/DISTINCT/EXTEND/RENAME/SET/DROP/HAVING/QUALIFY/ORDER BY/LIMIT/OFFSET/AS/JOIN/AGGREGATE/CALL/PIVOT/UNPIVOT/TABLESAMPLE/UNION/INTERSECT/EXCEPT`, including richer set-op modifiers and expression-based piped pagination. |
