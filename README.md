@@ -1,6 +1,7 @@
 # SwiftSqlParser
 
 SwiftSqlParser parses SQL into a Swift AST with configurable dialect behavior.
+The project is inspired by [JSqlParser](https://github.com/JSQLParser/JSqlParser).
 
 ## Install
 
