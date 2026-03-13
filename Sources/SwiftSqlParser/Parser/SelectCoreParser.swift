@@ -65,10 +65,10 @@ struct SelectCoreParser {
         break
       }
 
-      let isAll = matchKeyword("ALL")
+      let modifier = try parseSetOperationModifierIfPresent()
       let rhs = try parsePrimarySelectStatement()
       statement = SetOperationSelect(
-        left: statement, operation: operation, isAll: isAll, right: rhs)
+        left: statement, operation: operation, modifier: modifier, right: rhs)
     }
 
     return statement
@@ -287,10 +287,11 @@ struct SelectCoreParser {
         )
       }
 
-      let isAll = matchKeyword("ALL")
+      let modifier = try parseSetOperationModifierIfPresent()
       let lhs = buildCurrentStatement()
       let rhs = try parsePrimarySelectStatement()
-      statement = SetOperationSelect(left: lhs, operation: operation, isAll: isAll, right: rhs)
+      statement = SetOperationSelect(
+        left: lhs, operation: operation, modifier: modifier, right: rhs)
     }
 
     return buildCurrentStatement()
@@ -325,6 +326,99 @@ struct SelectCoreParser {
     }
 
     return assignments
+  }
+
+  private mutating func parseSetOperationModifierIfPresent() throws -> String? {
+    let start = index
+
+    if let modifier = try parseByNameSetOperationModifierIfPresent() {
+      return modifier
+    }
+    index = start
+
+    if let modifier = try parseCorrespondingSetOperationModifierIfPresent() {
+      return modifier
+    }
+    index = start
+
+    if matchKeyword("ALL") {
+      return "ALL"
+    }
+
+    if matchKeyword("DISTINCT") {
+      return "DISTINCT"
+    }
+
+    index = start
+    return nil
+  }
+
+  private mutating func parseByNameSetOperationModifierIfPresent() throws -> String? {
+    let start = index
+    var parts: [String] = []
+
+    if matchKeyword("ALL") {
+      parts.append("ALL")
+    } else if matchKeyword("DISTINCT") {
+      parts.append("DISTINCT")
+    }
+
+    guard matchKeyword("BY") else {
+      index = start
+      return nil
+    }
+    guard matchKeyword("NAME") else {
+      index = start
+      return nil
+    }
+
+    parts.append("BY NAME")
+
+    if matchKeyword("MATCHING") {
+      try consumeSymbol("(")
+      let columns = try parseIdentifierListUntilRightParen()
+      parts.append("MATCHING(\(columns.joined(separator: ", ")))")
+    }
+
+    return parts.joined(separator: " ")
+  }
+
+  private mutating func parseCorrespondingSetOperationModifierIfPresent() throws -> String? {
+    let start = index
+    var parts: [String] = []
+
+    if matchKeyword("STRICT") {
+      parts.append("STRICT")
+    }
+
+    guard matchKeyword("CORRESPONDING") else {
+      index = start
+      return nil
+    }
+
+    parts.append("CORRESPONDING")
+
+    if matchKeyword("ALL") {
+      parts.append("ALL")
+    } else if matchKeyword("DISTINCT") {
+      parts.append("DISTINCT")
+    }
+
+    if matchKeyword("BY") {
+      parts.append("BY")
+
+      if matchKeyword("ALL") {
+        parts.append("ALL")
+      } else if matchKeyword("DISTINCT") {
+        parts.append("DISTINCT")
+      }
+
+      try consumeSymbol("(")
+      let columns = try parseIdentifierListUntilRightParen()
+      parts.append("(\(columns.joined(separator: ", ")))")
+    }
+
+    return parts.joined(separator: " ")
   }
 
   private func appendPipeSelectItems(_ additions: [any SelectItem], to existing: [any SelectItem])

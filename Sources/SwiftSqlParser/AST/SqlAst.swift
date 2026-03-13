@@ -281,19 +281,27 @@ public struct SetOperationSelect: Statement, Sendable, Equatable {
   public let left: any Statement
   public let operation: Operation
   public let isAll: Bool
+  public let modifier: String?
   public let right: any Statement
 
-  public init(left: any Statement, operation: Operation, isAll: Bool = false, right: any Statement)
-  {
+  public init(
+    left: any Statement,
+    operation: Operation,
+    isAll: Bool = false,
+    modifier: String? = nil,
+    right: any Statement
+  ) {
     self.left = left
     self.operation = operation
-    self.isAll = isAll
+    self.isAll = isAll || modifier?.uppercased() == "ALL"
+    self.modifier = modifier ?? (isAll ? "ALL" : nil)
     self.right = right
   }
 
   public static func == (lhs: SetOperationSelect, rhs: SetOperationSelect) -> Bool {
     lhs.operation == rhs.operation
       && lhs.isAll == rhs.isAll
+      && lhs.modifier == rhs.modifier
       && String(describing: type(of: lhs.left)) == String(describing: type(of: rhs.left))
       && String(describing: type(of: lhs.right)) == String(describing: type(of: rhs.right))
   }

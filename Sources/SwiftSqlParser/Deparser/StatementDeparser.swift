@@ -59,9 +59,9 @@ public struct StatementDeparser {
         case .intersect: "INTERSECT"
         case .except: "EXCEPT"
         }
-      let allKeyword = setOperation.isAll ? " ALL" : ""
+      let modifier = setOperation.modifier.map { " \($0)" } ?? (setOperation.isAll ? " ALL" : "")
       return
-        "\(deparse(setOperation.left)) \(operationKeyword)\(allKeyword) \(deparse(setOperation.right))"
+        "\(deparse(setOperation.left)) \(operationKeyword)\(modifier) \(deparse(setOperation.right))"
     }
 
     if let pipeCall = statement as? PipeCallStatement {

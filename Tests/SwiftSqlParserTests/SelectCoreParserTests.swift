@@ -368,6 +368,70 @@ func pipedFromSqlSupportsCallOperator() throws {
 }
 
 @Test
+func pipedFromSqlSupportsUnionDistinctModifier() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> UNION DISTINCT SELECT id FROM archived_users",
+    options: options
+  )
+
+  guard let setOperation = parsed as? SetOperationSelect else {
+    Issue.record("Expected SetOperationSelect")
+    return
+  }
+
+  #expect(setOperation.operation == .union)
+  #expect(setOperation.modifier == "DISTINCT")
+  #expect(setOperation.isAll == false)
+  #expect(
+    StatementDeparser().deparse(setOperation)
+      == "SELECT id FROM users UNION DISTINCT SELECT id FROM archived_users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsUnionByNameMatchingModifier() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> UNION BY NAME MATCHING(id) SELECT id FROM archived_users",
+    options: options
+  )
+
+  guard let setOperation = parsed as? SetOperationSelect else {
+    Issue.record("Expected SetOperationSelect")
+    return
+  }
+
+  #expect(setOperation.operation == .union)
+  #expect(setOperation.modifier == "BY NAME MATCHING(id)")
+  #expect(
+    StatementDeparser().deparse(setOperation)
+      == "SELECT id FROM users UNION BY NAME MATCHING(id) SELECT id FROM archived_users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsIntersectStrictCorrespondingModifier() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> INTERSECT STRICT CORRESPONDING BY (id) SELECT id FROM archived_users",
+    options: options
+  )
+
+  guard let setOperation = parsed as? SetOperationSelect else {
+    Issue.record("Expected SetOperationSelect")
+    return
+  }
+
+  #expect(setOperation.operation == .intersect)
+  #expect(setOperation.modifier == "STRICT CORRESPONDING BY (id)")
+  #expect(
+    StatementDeparser().deparse(setOperation)
+      == "SELECT id FROM users INTERSECT STRICT CORRESPONDING BY (id) SELECT id FROM archived_users"
+  )
+}
+
+@Test
 func pipedFromSqlSupportsUnionAllOperator() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(
