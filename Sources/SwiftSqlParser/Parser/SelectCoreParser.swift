@@ -162,7 +162,7 @@ struct SelectCoreParser {
         continue
       }
 
-      if matchKeyword("SELECT") {
+      if matchKeyword("SELECT") || matchKeyword("SEL") || matchKeyword("WINDOW") {
         ensureSelectPipeline()
         selectItems = try parseSelectItems()
         continue
@@ -189,6 +189,12 @@ struct SelectCoreParser {
       if matchKeyword("DROP") {
         ensureSelectPipeline()
         selectItems = try applyPipeDrop(columns: try parsePipeIdentifierList(), to: selectItems)
+        continue
+      }
+
+      if matchKeyword("SET") {
+        ensureSelectPipeline()
+        selectItems = try applyPipeSet(assignments: try parsePipeAssignments(), to: selectItems)
         continue
       }
 
@@ -239,6 +245,11 @@ struct SelectCoreParser {
         continue
       }
 
+      if matchKeyword("CALL") {
+        statement = try parsePipeCallStatement(source: buildCurrentStatement())
+        continue
+      }
+
       if matchKeyword("AGGREGATE") {
         ensureSelectPipeline()
         selectItems = try parseSelectItems()
@@ -272,7 +283,7 @@ struct SelectCoreParser {
         operation = .except
       } else {
         throw SelectParseFailure.expected(
-          "supported pipe operator (WHERE, SELECT, DISTINCT, EXTEND, RENAME, DROP, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, PIVOT, UNPIVOT, TABLESAMPLE, UNION, INTERSECT, EXCEPT)"
+          "supported pipe operator (WHERE, SELECT, SEL, WINDOW, DISTINCT, EXTEND, RENAME, DROP, SET, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET, AS, JOIN, AGGREGATE, CALL, PIVOT, UNPIVOT, TABLESAMPLE, UNION, INTERSECT, EXCEPT)"
         )
       }
 
@@ -297,6 +308,23 @@ struct SelectCoreParser {
     }
 
     return columns
+  }
+
+  private mutating func parsePipeAssignments() throws -> [UpdateAssignment] {
+    var assignments: [UpdateAssignment] = []
+
+    while true {
+      let column = try consumeIdentifier()
+      try consumeSymbol("=")
+      let value = try parseExpression()
+      assignments.append(UpdateAssignment(column: column, value: value))
+      if match(symbol: ",") {
+        continue
+      }
+      break
+    }
+
+    return assignments
   }
 
   private func appendPipeSelectItems(_ additions: [any SelectItem], to existing: [any SelectItem])
@@ -379,6 +407,71 @@ struct SelectCoreParser {
     }
 
     return filtered
+  }
+
+  private func applyPipeSet(assignments: [UpdateAssignment], to existing: [any SelectItem]) throws
+    -> [any SelectItem]
+  {
+    guard assignments.isEmpty == false else {
+      return existing
+    }
+
+    if let allColumns = existing.first as? AllColumnsSelectItem {
+      var replacementsByAlias = Dictionary(
+        uniqueKeysWithValues: allColumns.replacements.map { ($0.alias, $0) })
+      var replacementOrder = allColumns.replacements.map(\.alias)
+
+      for assignment in assignments {
+        let replacement = AllColumnsSelectItem.Replacement(
+          expression: assignment.value,
+          alias: assignment.column
+        )
+        if replacementsByAlias[assignment.column] == nil {
+          replacementOrder.append(assignment.column)
+        }
+        replacementsByAlias[assignment.column] = replacement
+      }
+
+      let replacements = replacementOrder.compactMap { replacementsByAlias[$0] }
+      var updated: [any SelectItem] = [
+        AllColumnsSelectItem(exceptColumns: allColumns.exceptColumns, replacements: replacements)
+      ]
+      updated.append(
+        contentsOf: existing.dropFirst().filter { item in
+          guard let outputName = selectItemOutputName(item) else {
+            return true
+          }
+          return assignments.contains { $0.column == outputName } == false
+        })
+      return updated
+    }
+
+    var updated = existing
+    for assignment in assignments {
+      var didReplace = false
+      updated = updated.map { item in
+        guard let outputName = selectItemOutputName(item), outputName == assignment.column else {
+          return item
+        }
+
+        didReplace = true
+        return ExpressionSelectItem(expression: assignment.value, alias: assignment.column)
+      }
+
+      if didReplace == false {
+        throw SelectParseFailure.expected("SET requires projected columns or * output")
+      }
+    }
+
+    return updated
+  }
+
+  private mutating func parsePipeCallStatement(source: any Statement) throws -> PipeCallStatement {
+    let expression = try parseExpression()
+    guard let function = expression as? FunctionExpression else {
+      throw SelectParseFailure.expected("CALL requires a function invocation")
+    }
+    return PipeCallStatement(source: source, function: function, alias: try parseAliasIfPresent())
   }
 
   private func selectItemOutputName(_ item: any SelectItem) -> String? {

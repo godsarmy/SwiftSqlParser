@@ -44,6 +44,9 @@ private struct Collector {
     case let setOperation as SetOperationSelect:
       visit(statement: setOperation.left)
       visit(statement: setOperation.right)
+    case let pipeCall as PipeCallStatement:
+      visit(statement: pipeCall.source)
+      visit(expression: pipeCall.function)
     case let merge as MergeStatement:
       names.insert(merge.targetTable)
       visit(statement: merge.source)

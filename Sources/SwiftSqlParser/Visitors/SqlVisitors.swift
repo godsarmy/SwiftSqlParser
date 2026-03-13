@@ -5,6 +5,7 @@ public protocol StatementVisitor {
   mutating func visit(valuesSelect: ValuesSelect)
   mutating func visit(withSelect: WithSelect)
   mutating func visit(setOperationSelect: SetOperationSelect)
+  mutating func visit(pipeCallStatement: PipeCallStatement)
   mutating func visit(explainStatement: ExplainStatement)
   mutating func visit(showStatement: ShowStatement)
   mutating func visit(setStatement: SetStatement)
@@ -32,6 +33,7 @@ extension StatementVisitor {
   public mutating func visit(valuesSelect: ValuesSelect) {}
   public mutating func visit(withSelect: WithSelect) {}
   public mutating func visit(setOperationSelect: SetOperationSelect) {}
+  public mutating func visit(pipeCallStatement: PipeCallStatement) {}
   public mutating func visit(explainStatement: ExplainStatement) {}
   public mutating func visit(showStatement: ShowStatement) {}
   public mutating func visit(setStatement: SetStatement) {}
@@ -172,6 +174,11 @@ public enum AstVisit {
 
     if let setOperation = statement as? SetOperationSelect {
       visitor.visit(setOperationSelect: setOperation)
+      return
+    }
+
+    if let pipeCall = statement as? PipeCallStatement {
+      visitor.visit(pipeCallStatement: pipeCall)
       return
     }
 

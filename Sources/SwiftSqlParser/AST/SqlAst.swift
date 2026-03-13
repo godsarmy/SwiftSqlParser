@@ -299,6 +299,24 @@ public struct SetOperationSelect: Statement, Sendable, Equatable {
   }
 }
 
+public struct PipeCallStatement: Statement, Sendable, Equatable {
+  public let source: any Statement
+  public let function: FunctionExpression
+  public let alias: String?
+
+  public init(source: any Statement, function: FunctionExpression, alias: String? = nil) {
+    self.source = source
+    self.function = function
+    self.alias = alias
+  }
+
+  public static func == (lhs: PipeCallStatement, rhs: PipeCallStatement) -> Bool {
+    lhs.alias == rhs.alias
+      && lhs.function == rhs.function
+      && String(describing: type(of: lhs.source)) == String(describing: type(of: rhs.source))
+  }
+}
+
 public struct InsertStatement: Statement, Sendable, Equatable {
   public enum Source: Sendable, Equatable {
     case values([[any Expression]])

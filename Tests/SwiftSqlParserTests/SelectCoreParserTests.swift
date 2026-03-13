@@ -281,6 +281,93 @@ func pipedFromSqlSupportsDistinctOperator() throws {
 }
 
 @Test
+func pipedFromSqlSupportsSelAlias() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SEL id, name",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 2)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id, name FROM users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsWindowAlias() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> WINDOW ROW_NUMBER() OVER (PARTITION BY department_id ORDER BY id) AS row_num",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT ROW_NUMBER() OVER (PARTITION BY department_id ORDER BY id) AS row_num FROM users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsSetOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SET name = UPPER(name), active = 1",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect,
+    let allColumns = select.selectItems.first as? AllColumnsSelectItem
+  else {
+    Issue.record("Expected PlainSelect with all-columns replacement")
+    return
+  }
+
+  #expect(allColumns.replacements.count == 2)
+  #expect(select.selectItems.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT * REPLACE (UPPER(name) AS name, 1 AS active) FROM users"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsCallOperator() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> CALL normalize_users() cleaned",
+    options: options
+  )
+
+  guard let call = parsed as? PipeCallStatement,
+    let source = call.source as? PlainSelect
+  else {
+    Issue.record("Expected PipeCallStatement")
+    return
+  }
+
+  #expect(call.alias == "cleaned")
+  #expect(call.function.name == "normalize_users")
+  #expect(source.selectItems.count == 1)
+  #expect(
+    StatementDeparser().deparse(call)
+      == "SELECT * FROM users |> CALL normalize_users() cleaned"
+  )
+}
+
+@Test
 func pipedFromSqlSupportsUnionAllOperator() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(

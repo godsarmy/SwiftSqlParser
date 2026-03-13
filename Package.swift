@@ -22,7 +22,7 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.6.0"),
+    .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.6.0")
   ],
   targets: [
     .target(

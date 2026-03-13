@@ -64,6 +64,12 @@ public struct StatementDeparser {
         "\(deparse(setOperation.left)) \(operationKeyword)\(allKeyword) \(deparse(setOperation.right))"
     }
 
+    if let pipeCall = statement as? PipeCallStatement {
+      let function = expressionDeparser.deparse(pipeCall.function)
+      let alias = pipeCall.alias.map { " \($0)" } ?? ""
+      return "\(deparse(pipeCall.source)) |> CALL \(function)\(alias)"
+    }
+
     if let merge = statement as? MergeStatement {
       var sql = "MERGE INTO \(merge.targetTable)"
       if let alias = merge.targetAlias {
