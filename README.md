@@ -19,6 +19,39 @@ Then add the product to your target dependencies:
 .product(name: "SwiftSqlParser", package: "SwiftSqlParser")
 ```
 
+## Quick Start
+
+```swift
+import SwiftSqlParser
+
+let sqlStr = "select 1 from dual where a=b"
+let statement = try parseStatement(sqlStr)
+
+guard let select = statement as? PlainSelect else {
+  fatalError("Expected PlainSelect")
+}
+
+guard let selectItem = select.selectItems.first as? ExpressionSelectItem,
+      let one = selectItem.expression as? NumberLiteralExpression else {
+  fatalError("Expected numeric select item")
+}
+assert(one.value == 1)
+
+guard let table = select.from as? TableFromItem else {
+  fatalError("Expected table from item")
+}
+assert(table.name == "dual")
+
+guard let equals = select.whereExpression as? BinaryExpression,
+      let a = equals.left as? IdentifierExpression,
+      let b = equals.right as? IdentifierExpression else {
+  fatalError("Expected binary WHERE expression")
+}
+assert(equals.operator == .equals)
+assert(a.name == "a")
+assert(b.name == "b")
+```
+
 ## Features
 
 - Query parsing
@@ -43,45 +76,6 @@ Then add the product to your target dependencies:
 - Utilities and tooling
   - visitors, deparsers, and `TableNameFinder` for statements and expressions
   - upstream-aligned JSqlParser-derived tests plus curated SQL corpora for syntax and recovery coverage
-
-## Quick Start
-
-- Configure dialect and experimental behavior through `ParserOptions`
-- Use the throwing parse APIs for typed ASTs and the result APIs when you want diagnostics without throwing
-- Reach for `TableNameFinder` when you need quick table discovery from statements or expressions
-
-```swift
-import SwiftSqlParser
-
-let options = ParserOptions(
-    dialectFeatures: [.postgres],
-    experimentalFeatures: [.postgresIlike, .postgresDistinctOn]
-)
-
-let statement = try parseStatement("SELECT id FROM users WHERE name ILIKE 'a%'", options: options)
-let statements = try parseStatements("SELECT * FROM users;DELETE FROM users WHERE id = 1")
-let script = parseScript(
-    "SELECT 'a;b' FROM users;MATCH_RECOGNIZE (foo);SHOW TABLES",
-    options: ParserOptions(recoverParseErrors: true, recoverUnsupportedStatements: true)
-)
-
-let statementResult = SqlParser().parseStatementResult("MATCH_RECOGNIZE (foo)")
-let statementsResult = try SqlParser().parseStatementsResult("SELECT * FROM users;;SELECT * FROM roles")
-
-let utility = try parseStatement("EXPLAIN SELECT * FROM users")
-let tables = TableNameFinder().find(in: statement)
-let expressionTables = TableNameFinder().find(in: BinaryExpression(
-    left: IdentifierExpression(name: "users.id"),
-    operator: .equals,
-    right: IdentifierExpression(name: "roles.user_id")
-))
-```
-
-- `statement` parses a single SQL statement with Postgres-specific options enabled
-- `statements` parses a delimiter-separated batch
-- `script` keeps going with recovery enabled and collects diagnostics for unsupported or invalid chunks
-- `statementResult` and `statementsResult` expose non-throwing parse flows
-- `utility`, `tables`, and `expressionTables` show the AST and utility layer around the core parser
 
 ## Development
 
