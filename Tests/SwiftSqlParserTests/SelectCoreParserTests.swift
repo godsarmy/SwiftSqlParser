@@ -497,6 +497,68 @@ func pipedFromSqlSupportsAggregateGroupAndOrderShorthand() throws {
 }
 
 @Test
+func pipedFromSqlSupportsLimitExpression() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> LIMIT page_size + 1",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.limit == nil)
+  #expect(select.limitExpression != nil)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM users LIMIT page_size + 1"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsLimitAndOffsetExpressions() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> LIMIT page_size OFFSET skip_rows + 2",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.limitExpression != nil)
+  #expect(select.offset == nil)
+  #expect(select.offsetExpression != nil)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT id FROM users LIMIT page_size OFFSET skip_rows + 2"
+  )
+}
+
+@Test
+func pipedFromSqlPreservesIntegerLimitValues() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> SELECT id |> LIMIT 5 OFFSET 2",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.limit == 5)
+  #expect(select.limitExpression == nil)
+  #expect(select.offset == 2)
+  #expect(select.offsetExpression == nil)
+}
+
+@Test
 func pipedFromSqlSupportsUnionAllOperator() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(

@@ -66,11 +66,15 @@ public struct SelectDeparser {
       query += " ORDER BY \(orderBy)"
     }
 
-    if let limit = statement.limit {
+    if let limitExpression = statement.limitExpression {
+      query += " LIMIT \(expressionDeparser.deparse(limitExpression))"
+    } else if let limit = statement.limit {
       query += " LIMIT \(limit)"
     }
 
-    if let offset = statement.offset {
+    if let offsetExpression = statement.offsetExpression {
+      query += " OFFSET \(expressionDeparser.deparse(offsetExpression))"
+    } else if let offset = statement.offset {
       query += " OFFSET \(offset)"
     }
 

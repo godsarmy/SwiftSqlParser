@@ -115,6 +115,8 @@ struct SelectCoreParser {
     var orderBy: [OrderByElement] = []
     var limit: Int?
     var offset: Int?
+    var limitExpression: (any Expression)?
+    var offsetExpression: (any Expression)?
     var statement: (any Statement)?
 
     func buildPlainSelect() -> PlainSelect {
@@ -129,7 +131,9 @@ struct SelectCoreParser {
         qualifyExpression: qualifyExpression,
         orderBy: orderBy,
         limit: limit,
-        offset: offset
+        offset: offset,
+        limitExpression: limitExpression,
+        offsetExpression: offsetExpression
       )
     }
 
@@ -149,6 +153,8 @@ struct SelectCoreParser {
       orderBy = []
       limit = nil
       offset = nil
+      limitExpression = nil
+      offsetExpression = nil
       statement = nil
     }
 
@@ -224,16 +230,37 @@ struct SelectCoreParser {
 
       if matchKeyword("LIMIT") {
         ensureSelectPipeline()
-        limit = try consumeIntegerLiteral()
+        let expression = try parseExpression()
+        if let integer = integerLiteralValue(from: expression) {
+          limit = integer
+          limitExpression = nil
+        } else {
+          limit = nil
+          limitExpression = expression
+        }
         if matchKeyword("OFFSET") {
-          offset = try consumeIntegerLiteral()
+          let offsetExpr = try parseExpression()
+          if let integer = integerLiteralValue(from: offsetExpr) {
+            offset = integer
+            offsetExpression = nil
+          } else {
+            offset = nil
+            offsetExpression = offsetExpr
+          }
         }
         continue
       }
 
       if matchKeyword("OFFSET") {
         ensureSelectPipeline()
-        offset = try consumeIntegerLiteral()
+        let expression = try parseExpression()
+        if let integer = integerLiteralValue(from: expression) {
+          offset = integer
+          offsetExpression = nil
+        } else {
+          offset = nil
+          offsetExpression = expression
+        }
         continue
       }
 
@@ -511,6 +538,15 @@ struct SelectCoreParser {
       }
       return OrderByElement(expression: expression, direction: item.direction)
     }
+  }
+
+  private func integerLiteralValue(from expression: any Expression) -> Int? {
+    guard let number = expression as? NumberLiteralExpression,
+      number.value.rounded(.towardZero) == number.value
+    else {
+      return nil
+    }
+    return Int(number.value)
   }
 
   private func appendPipeSelectItems(_ additions: [any SelectItem], to existing: [any SelectItem])

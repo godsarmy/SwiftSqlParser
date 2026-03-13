@@ -72,6 +72,8 @@ public struct PlainSelect: Statement, Sendable, Equatable {
   public var orderBy: [OrderByElement]
   public var limit: Int?
   public var offset: Int?
+  public var limitExpression: (any Expression)?
+  public var offsetExpression: (any Expression)?
 
   public init(
     distinctOnExpressions: [any Expression] = [],
@@ -87,7 +89,9 @@ public struct PlainSelect: Statement, Sendable, Equatable {
     qualifyExpression: (any Expression)? = nil,
     orderBy: [OrderByElement] = [],
     limit: Int? = nil,
-    offset: Int? = nil
+    offset: Int? = nil,
+    limitExpression: (any Expression)? = nil,
+    offsetExpression: (any Expression)? = nil
   ) {
     self.distinctOnExpressions = distinctOnExpressions
     self.top = top
@@ -103,6 +107,8 @@ public struct PlainSelect: Statement, Sendable, Equatable {
     self.orderBy = orderBy
     self.limit = limit
     self.offset = offset
+    self.limitExpression = limitExpression
+    self.offsetExpression = offsetExpression
   }
 
   public static func == (lhs: PlainSelect, rhs: PlainSelect) -> Bool {
@@ -119,6 +125,8 @@ public struct PlainSelect: Statement, Sendable, Equatable {
       && lhs.orderBy == rhs.orderBy
       && lhs.limit == rhs.limit
       && lhs.offset == rhs.offset
+      && (lhs.limitExpression == nil) == (rhs.limitExpression == nil)
+      && (lhs.offsetExpression == nil) == (rhs.offsetExpression == nil)
   }
 }
 
