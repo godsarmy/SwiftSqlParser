@@ -1,6 +1,11 @@
 import Foundation
 
 struct SelectCoreParser {
+  private struct PipedAggregateItem {
+    let selectItem: any SelectItem
+    let direction: OrderByElement.Direction?
+  }
+
   private let tokens: [Token]
   private let options: ParserOptions
   private var index: Int = 0
@@ -252,12 +257,42 @@ struct SelectCoreParser {
 
       if matchKeyword("AGGREGATE") {
         ensureSelectPipeline()
-        selectItems = try parseSelectItems()
+        let aggregateItems = try parsePipeAggregateItems()
+        var aggregateSelectItems = aggregateItems.map(\.selectItem)
+        var aggregateGroupByExpressions: [any Expression] = []
+        var aggregateOrderBy = try buildAggregateOrderBy(from: aggregateItems)
+
         if matchKeyword("GROUP") {
+          let shorthandOrdering = matchKeyword("AND")
+          if shorthandOrdering {
+            try consumeKeyword("ORDER")
+          }
           try consumeKeyword("BY")
-          groupByExpressions = try parseExpressionList()
+          let groupItems = try parsePipeAggregateItems()
+          aggregateGroupByExpressions = try groupItems.map(groupExpression)
+
+          let projectedGroupItems = groupItems.filter { groupItem in
+            guard let outputName = selectItemOutputName(groupItem.selectItem) else {
+              return true
+            }
+            return aggregateSelectItems.contains { selectItemOutputName($0) == outputName } == false
+          }
+          aggregateSelectItems = projectedGroupItems.map(\.selectItem) + aggregateSelectItems
+
+          if shorthandOrdering {
+            aggregateOrderBy = try buildAggregateOrderBy(
+              from: groupItems, includeUnorderedItems: true)
+          } else {
+            aggregateOrderBy.append(contentsOf: try buildAggregateOrderBy(from: groupItems))
+          }
         } else {
-          groupByExpressions = []
+          aggregateGroupByExpressions = []
+        }
+
+        selectItems = aggregateSelectItems
+        groupByExpressions = aggregateGroupByExpressions
+        if aggregateOrderBy.isEmpty == false {
+          orderBy = aggregateOrderBy
         }
         continue
       }
@@ -326,6 +361,35 @@ struct SelectCoreParser {
     }
 
     return assignments
+  }
+
+  private mutating func parsePipeAggregateItems() throws -> [PipedAggregateItem] {
+    var items: [PipedAggregateItem] = []
+
+    while true {
+      if match(symbol: "*") {
+        items.append(
+          PipedAggregateItem(
+            selectItem: try parseAllColumnsSelectItem(),
+            direction: parseOrderDirectionIfPresent()
+          ))
+      } else {
+        let expression = try parseExpression()
+        let alias = try parseAliasIfPresent()
+        items.append(
+          PipedAggregateItem(
+            selectItem: ExpressionSelectItem(expression: expression, alias: alias),
+            direction: parseOrderDirectionIfPresent()
+          ))
+      }
+
+      if match(symbol: ",") {
+        continue
+      }
+      break
+    }
+
+    return items
   }
 
   private mutating func parseSetOperationModifierIfPresent() throws -> String? {
@@ -419,6 +483,34 @@ struct SelectCoreParser {
     }
 
     return parts.joined(separator: " ")
+  }
+
+  private func groupExpression(from item: PipedAggregateItem) throws -> any Expression {
+    guard let expressionItem = item.selectItem as? ExpressionSelectItem else {
+      throw SelectParseFailure.expected("AGGREGATE GROUP BY requires expressions")
+    }
+    return expressionItem.expression
+  }
+
+  private func buildAggregateOrderBy(
+    from items: [PipedAggregateItem],
+    includeUnorderedItems: Bool = false
+  ) throws -> [OrderByElement] {
+    try items.compactMap { item in
+      guard includeUnorderedItems || item.direction != nil else {
+        return nil
+      }
+      guard let expressionItem = item.selectItem as? ExpressionSelectItem else {
+        throw SelectParseFailure.expected("AGGREGATE ordering requires expressions")
+      }
+      let expression: any Expression
+      if let alias = expressionItem.alias {
+        expression = IdentifierExpression(name: alias)
+      } else {
+        expression = expressionItem.expression
+      }
+      return OrderByElement(expression: expression, direction: item.direction)
+    }
   }
 
   private func appendPipeSelectItems(_ additions: [any SelectItem], to existing: [any SelectItem])
@@ -844,7 +936,7 @@ struct SelectCoreParser {
       "FROM", "WHERE", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "ON", "USING", "APPLY",
       "PIVOT", "UNPIVOT", "TABLESAMPLE",
       "UNION", "INTERSECT", "EXCEPT", "ALL", "GROUP", "HAVING", "QUALIFY", "ORDER", "LIMIT",
-      "OFFSET", "AT", "BEFORE", "CHANGES", "FOR",
+      "OFFSET", "ASC", "DESC", "NULLS", "FIRST", "LAST", "AT", "BEFORE", "CHANGES", "FOR",
     ]
     if keywordBoundary.contains(next.uppercased) {
       return nil
@@ -1097,14 +1189,7 @@ struct SelectCoreParser {
     var elements: [OrderByElement] = []
     while true {
       let expression = try parseExpression()
-      let direction: OrderByElement.Direction?
-      if matchKeyword("ASC") {
-        direction = .ascending
-      } else if matchKeyword("DESC") {
-        direction = .descending
-      } else {
-        direction = nil
-      }
+      let direction = parseOrderDirectionIfPresent()
       elements.append(OrderByElement(expression: expression, direction: direction))
       if match(symbol: ",") {
         continue
@@ -1113,6 +1198,18 @@ struct SelectCoreParser {
     }
 
     return elements
+  }
+
+  private mutating func parseOrderDirectionIfPresent() -> OrderByElement.Direction? {
+    if matchKeyword("ASC") {
+      return .ascending
+    }
+
+    if matchKeyword("DESC") {
+      return .descending
+    }
+
+    return nil
   }
 
   private mutating func parseExpressionList() throws -> [any Expression] {

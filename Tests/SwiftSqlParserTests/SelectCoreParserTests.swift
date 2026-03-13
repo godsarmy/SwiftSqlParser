@@ -432,6 +432,71 @@ func pipedFromSqlSupportsIntersectStrictCorrespondingModifier() throws {
 }
 
 @Test
+func pipedFromSqlSupportsAggregateInlineOrderByOutputAlias() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> AGGREGATE COUNT(*) AS total DESC",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 1)
+  #expect(select.orderBy.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT COUNT(*) AS total FROM users ORDER BY total DESC"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsAggregateGroupByInlineOrder() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> AGGREGATE COUNT(*) AS total GROUP BY department_id DESC",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 2)
+  #expect(select.groupByExpressions.count == 1)
+  #expect(select.orderBy.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT department_id, COUNT(*) AS total FROM users GROUP BY department_id ORDER BY department_id DESC"
+  )
+}
+
+@Test
+func pipedFromSqlSupportsAggregateGroupAndOrderShorthand() throws {
+  let options = ParserOptions(experimentalFeatures: [.pipedSql])
+  let parsed = try parseStatement(
+    "FROM users |> AGGREGATE COUNT(*) AS total GROUP AND ORDER BY department_id",
+    options: options
+  )
+
+  guard let select = parsed as? PlainSelect else {
+    Issue.record("Expected PlainSelect")
+    return
+  }
+
+  #expect(select.selectItems.count == 2)
+  #expect(select.groupByExpressions.count == 1)
+  #expect(select.orderBy.count == 1)
+  #expect(
+    StatementDeparser().deparse(select)
+      == "SELECT department_id, COUNT(*) AS total FROM users GROUP BY department_id ORDER BY department_id"
+  )
+}
+
+@Test
 func pipedFromSqlSupportsUnionAllOperator() throws {
   let options = ParserOptions(experimentalFeatures: [.pipedSql])
   let parsed = try parseStatement(
