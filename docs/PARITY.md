@@ -20,9 +20,30 @@ This document tracks high-level feature parity against the JSqlParser capability
 
 Status legend:
 
-- `implemented` - parser + deparser path exists and is covered by tests
+- `implemented` - a typed parser + deparser path exists and is covered by tests; this does not imply complete vendor grammar coverage
 - `partial` - some syntax or dialect coverage exists, but not full family coverage
 - `missing` - not implemented yet
+
+## Upstream Baseline
+
+Reviewed on 2026-10-18 against:
+
+- Release target: [JSqlParser 5.4](https://github.com/JSQLParser/JSqlParser/releases/tag/jsqlparser-5.4), released 2026-09-13.
+- Development snapshot: [`f6ac2571e6e9777d6a5ee942a4ea53cd91153e4d`](https://github.com/JSQLParser/JSqlParser/tree/f6ac2571e6e9777d6a5ee942a4ea53cd91153e4d), committed 2026-10-18.
+
+The review sampled the latest 100 commits and the 5.4 release notes; it is not an exhaustive differential conformance run. Future reviews should record the new snapshot and compare it with this baseline.
+
+Raw passthrough (`RawStatement`) preserves SQL text but does not count as typed syntax support, AST traversal, or table-discovery parity. For example, `CHECK TABLE t` currently passes through as raw SQL. Unsupported syntax within recognized parser families produces normalized diagnostics instead.
+
+## Tracked Upstream Regressions
+
+Local coverage is in `Tests/SwiftSqlParserTests/UpstreamRegressionTests.swift`.
+
+| Upstream reference | Local coverage | Status |
+|---|---|---|
+| [#2751: trailing LIMIT/OFFSET on set operations](https://github.com/JSQLParser/JSqlParser/pull/2751) | Combined-query ORDER BY/LIMIT/OFFSET, operand-local clauses, nested grouping, WITH/VALUES operands, and piped set operations | implemented |
+| [#2749: query and DML table-finder children](https://github.com/JSQLParser/JSqlParser/pull/2749) and [#2826: skipped expression children](https://github.com/JSQLParser/JSqlParser/pull/2826) | VALUES, DISTINCT ON, star replacements, conflict and duplicate-key updates, and expression-based pagination; broader upstream node types remain outside our AST | partial |
+| [#2831: power/XOR precedence](https://github.com/JSQLParser/JSqlParser/pull/2831) and [#2833: bitwise precedence](https://github.com/JSQLParser/JSqlParser/pull/2833) | Operators are not yet represented in the Swift binary-expression AST | missing |
 
 ## Dialect Families
 
@@ -69,6 +90,9 @@ Status legend:
 
 ## Next Recommended Work
 
-1. Add dialect-focused conformance tests for `duckDB`, `redshift`, `db2`, `h2`, `hsqldb`, `derby`, and deeper `sqlite` behavior.
-2. Add more vendor-specific DDL variants under explicit flags where needed.
-3. Verify whether upstream `TABLE SAMPLE` spelling should also be accepted alongside the current `TABLESAMPLE` tokenization path.
+1. Add missing bitwise, shift, power, modulo, and concatenation operators with explicit precedence tests in both query and DML parsing.
+2. Expand DuckDB coverage: star RENAME, comprehensions, slices, lambdas, numeric separators, percentage limits, methodless sampling, FROM-first/TABLE operands, and named-window inheritance.
+3. Extend typed PostgreSQL/MySQL DDL, including ON COMMIT, access methods, DROP behavior, column positions, and attributes; retain additive AST APIs.
+4. Add typed MySQL maintenance statements and track PostgreSQL ownership, Informix constraints, ClickHouse transformers, and ksqlDB clauses as separate gaps.
+5. Add dialect-focused conformance tests for redshift, db2, h2, hsqldb, derby, and deeper sqlite behavior.
+6. Verify whether upstream TABLE SAMPLE spelling should also be accepted alongside the current TABLESAMPLE tokenization path.

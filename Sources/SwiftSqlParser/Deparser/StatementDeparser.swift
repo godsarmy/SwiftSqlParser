@@ -60,8 +60,13 @@ public struct StatementDeparser {
         case .except: "EXCEPT"
         }
       let modifier = setOperation.modifier.map { " \($0)" } ?? (setOperation.isAll ? " ALL" : "")
-      return
-        "\(deparse(setOperation.left)) \(operationKeyword)\(modifier) \(deparse(setOperation.right))"
+      let left = deparseSetOperand(setOperation.left)
+      let right = deparseSetOperand(setOperation.right)
+      let tail = SelectDeparser(expressionDeparser: expressionDeparser).deparseQueryTail(
+        orderBy: setOperation.orderBy, limit: setOperation.limit, offset: setOperation.offset,
+        limitExpression: setOperation.limitExpression,
+        offsetExpression: setOperation.offsetExpression)
+      return "\(left) \(operationKeyword)\(modifier) \(right)\(tail)"
     }
 
     if let pipeCall = statement as? PipeCallStatement {
@@ -347,5 +352,18 @@ public struct StatementDeparser {
     case .check(let expression):
       return "\(prefix)CHECK (\(expressionDeparser.deparse(expression)))"
     }
+  }
+
+  private func deparseSetOperand(_ statement: any Statement) -> String {
+    let needsParentheses: Bool
+    if let select = statement as? PlainSelect {
+      needsParentheses =
+        select.orderBy.isEmpty == false || select.limit != nil
+        || select.offset != nil || select.limitExpression != nil || select.offsetExpression != nil
+    } else {
+      needsParentheses = statement is SetOperationSelect || statement is WithSelect
+    }
+    let sql = deparse(statement)
+    return needsParentheses ? "(\(sql))" : sql
   }
 }

@@ -292,24 +292,45 @@ public struct SetOperationSelect: Statement, Sendable, Equatable {
   public let modifier: String?
   public let right: any Statement
 
+  public var orderBy: [OrderByElement]
+  public var limit: Int?
+  public var offset: Int?
+  public var limitExpression: (any Expression)?
+  public var offsetExpression: (any Expression)?
+
   public init(
     left: any Statement,
     operation: Operation,
     isAll: Bool = false,
     modifier: String? = nil,
-    right: any Statement
+    right: any Statement,
+    orderBy: [OrderByElement] = [],
+    limit: Int? = nil,
+    offset: Int? = nil,
+    limitExpression: (any Expression)? = nil,
+    offsetExpression: (any Expression)? = nil
   ) {
     self.left = left
     self.operation = operation
     self.isAll = isAll || modifier?.uppercased() == "ALL"
     self.modifier = modifier ?? (isAll ? "ALL" : nil)
     self.right = right
+    self.orderBy = orderBy
+    self.limit = limit
+    self.offset = offset
+    self.limitExpression = limitExpression
+    self.offsetExpression = offsetExpression
   }
 
   public static func == (lhs: SetOperationSelect, rhs: SetOperationSelect) -> Bool {
     lhs.operation == rhs.operation
       && lhs.isAll == rhs.isAll
       && lhs.modifier == rhs.modifier
+      && lhs.orderBy == rhs.orderBy
+      && lhs.limit == rhs.limit
+      && lhs.offset == rhs.offset
+      && (lhs.limitExpression == nil) == (rhs.limitExpression == nil)
+      && (lhs.offsetExpression == nil) == (rhs.offsetExpression == nil)
       && String(describing: type(of: lhs.left)) == String(describing: type(of: rhs.left))
       && String(describing: type(of: lhs.right)) == String(describing: type(of: rhs.right))
   }

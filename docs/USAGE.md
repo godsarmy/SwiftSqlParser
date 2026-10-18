@@ -389,6 +389,19 @@ This is the Swift equivalent of JSqlParser's build-and-deparse workflow.
 
 For an explicit parity tracker against JSqlParser feature claims, see `docs/PARITY.md`.
 
+For a set operation, trailing `ORDER BY`, `LIMIT`, and `OFFSET` belong to
+`SetOperationSelect`, rather than its right operand. For example,
+`SELECT id FROM users UNION SELECT id FROM archived LIMIT 5` sets the combined
+query's `limit` to `5`. Parenthesize an operand to keep clauses local to that
+operand, such as `SELECT id FROM users UNION (SELECT id FROM archived LIMIT 2)`.
+The deparser preserves that distinction when rendering nested set operations.
+
+`TableNameFinder` traverses structured query and DML expressions, including
+`VALUES`, `DISTINCT ON`, star replacements, conflict-update clauses, duplicate-key
+assignments, and expression-based pagination. Raw SQL passthrough does not provide
+typed table discovery.
+
+
 Current implemented families include:
 
 - query: `SELECT`, `WITH`, `VALUES`, set operations, joins, windows, ordering, `LIMIT`, `OFFSET`

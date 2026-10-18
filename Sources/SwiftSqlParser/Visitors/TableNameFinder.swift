@@ -30,7 +30,7 @@ private struct Collector {
     case let select as PlainSelect:
       visit(select: select)
     case let values as ValuesSelect:
-      _ = values
+      values.rows.forEach { row in row.forEach { visit(expression: $0) } }
     case let withSelect as WithSelect:
       let previousCtes = cteNames
       let previousAliases = aliases
@@ -44,6 +44,9 @@ private struct Collector {
     case let setOperation as SetOperationSelect:
       visit(statement: setOperation.left)
       visit(statement: setOperation.right)
+      setOperation.orderBy.forEach { visit(expression: $0.expression) }
+      if let expression = setOperation.limitExpression { visit(expression: expression) }
+      if let expression = setOperation.offsetExpression { visit(expression: expression) }
     case let pipeCall as PipeCallStatement:
       visit(statement: pipeCall.source)
       visit(expression: pipeCall.function)
@@ -57,10 +60,14 @@ private struct Collector {
     case let insert as InsertStatement:
       names.insert(insert.table)
       visit(insertSource: insert.source)
+      visit(onConflict: insert.onConflict)
+      insert.onDuplicateKeyAssignments.forEach { visit(expression: $0.value) }
       visit(returning: insert.returningClause)
     case let upsert as UpsertStatement:
       names.insert(upsert.table)
       visit(insertSource: upsert.source)
+      visit(onConflict: upsert.onConflict)
+      upsert.onDuplicateKeyAssignments.forEach { visit(expression: $0.value) }
       visit(returning: upsert.returningClause)
     case let update as UpdateStatement:
       names.insert(update.table)
@@ -125,12 +132,15 @@ private struct Collector {
   mutating func visit(select: PlainSelect) {
     visit(fromItem: select.from)
     select.joins.forEach { visit(join: $0) }
+    select.distinctOnExpressions.forEach { visit(expression: $0) }
     select.selectItems.forEach { visit(selectItem: $0) }
     if let whereExpression = select.whereExpression { visit(expression: whereExpression) }
     select.groupByExpressions.forEach { visit(expression: $0) }
     if let havingExpression = select.havingExpression { visit(expression: havingExpression) }
     if let qualifyExpression = select.qualifyExpression { visit(expression: qualifyExpression) }
     select.orderBy.forEach { visit(expression: $0.expression) }
+    if let expression = select.limitExpression { visit(expression: expression) }
+    if let expression = select.offsetExpression { visit(expression: expression) }
   }
 
   mutating func visit(join: Join) {
@@ -168,6 +178,9 @@ private struct Collector {
   }
 
   mutating func visit(selectItem: any SelectItem) {
+    if let allColumns = selectItem as? AllColumnsSelectItem {
+      allColumns.replacements.forEach { visit(expression: $0.expression) }
+    }
     if let expressionItem = selectItem as? ExpressionSelectItem {
       visit(expression: expressionItem.expression)
     }
@@ -176,6 +189,14 @@ private struct Collector {
   mutating func visit(returning clause: ReturningClause?) {
     guard let clause else { return }
     clause.items.forEach { visit(selectItem: $0) }
+  }
+
+  mutating func visit(onConflict clause: InsertOnConflictClause?) {
+    guard let clause else { return }
+    if case .doUpdate(let assignments, let whereExpression) = clause.action {
+      assignments.forEach { visit(expression: $0.value) }
+      if let whereExpression { visit(expression: whereExpression) }
+    }
   }
 
   mutating func visit(insertSource: InsertStatement.Source) {

@@ -59,26 +59,31 @@ public struct SelectDeparser {
       query += " QUALIFY \(expressionDeparser.deparse(qualifyExpression))"
     }
 
-    if statement.orderBy.isEmpty == false {
-      let orderBy = statement.orderBy
-        .map(deparseOrderByElement)
-        .joined(separator: ", ")
-      query += " ORDER BY \(orderBy)"
-    }
-
-    if let limitExpression = statement.limitExpression {
-      query += " LIMIT \(expressionDeparser.deparse(limitExpression))"
-    } else if let limit = statement.limit {
-      query += " LIMIT \(limit)"
-    }
-
-    if let offsetExpression = statement.offsetExpression {
-      query += " OFFSET \(expressionDeparser.deparse(offsetExpression))"
-    } else if let offset = statement.offset {
-      query += " OFFSET \(offset)"
-    }
-
+    query += deparseQueryTail(
+      orderBy: statement.orderBy, limit: statement.limit, offset: statement.offset,
+      limitExpression: statement.limitExpression, offsetExpression: statement.offsetExpression)
     return query
+  }
+
+  func deparseQueryTail(
+    orderBy: [OrderByElement], limit: Int?, offset: Int?,
+    limitExpression: (any Expression)?, offsetExpression: (any Expression)?
+  ) -> String {
+    var sql = ""
+    if orderBy.isEmpty == false {
+      sql += " ORDER BY \(orderBy.map(deparseOrderByElement).joined(separator: ", "))"
+    }
+    if let limitExpression {
+      sql += " LIMIT \(expressionDeparser.deparse(limitExpression))"
+    } else if let limit {
+      sql += " LIMIT \(limit)"
+    }
+    if let offsetExpression {
+      sql += " OFFSET \(expressionDeparser.deparse(offsetExpression))"
+    } else if let offset {
+      sql += " OFFSET \(offset)"
+    }
+    return sql
   }
 
   private func deparseOrderByElement(_ element: OrderByElement) -> String {

@@ -76,7 +76,32 @@ struct SelectCoreParser {
         left: statement, operation: operation, modifier: modifier, right: rhs)
     }
 
-    return statement
+    let orderBy = try parseOrderByClauseIfPresent()
+    let limit = try parseLimitClauseIfPresent()
+    let offset = try parseOffsetClauseIfPresent()
+    guard orderBy.isEmpty == false || limit != nil || offset != nil else {
+      return statement
+    }
+
+    if var select = statement as? PlainSelect {
+      guard select.orderBy.isEmpty, select.limit == nil, select.offset == nil,
+        select.limitExpression == nil, select.offsetExpression == nil
+      else { throw SelectParseFailure.expected("query without duplicate trailing clauses") }
+      select.orderBy = orderBy
+      select.limit = limit
+      select.offset = offset
+      return select
+    }
+    if var setOperation = statement as? SetOperationSelect {
+      guard setOperation.orderBy.isEmpty, setOperation.limit == nil, setOperation.offset == nil,
+        setOperation.limitExpression == nil, setOperation.offsetExpression == nil
+      else { throw SelectParseFailure.expected("query without duplicate trailing clauses") }
+      setOperation.orderBy = orderBy
+      setOperation.limit = limit
+      setOperation.offset = offset
+      return setOperation
+    }
+    throw SelectParseFailure.expected("SELECT or set operation for trailing clauses")
   }
 
   private mutating func parsePrimarySelectStatement() throws -> any Statement {
@@ -835,10 +860,6 @@ struct SelectCoreParser {
     let groupByExpressions = try parseGroupByClauseIfPresent()
     let havingExpression = try parseHavingClauseIfPresent()
     let qualifyExpression = try parseQualifyClauseIfPresent()
-    let orderBy = try parseOrderByClauseIfPresent()
-    let limit = try parseLimitClauseIfPresent()
-    let offset = try parseOffsetClauseIfPresent()
-
     return PlainSelect(
       distinctOnExpressions: distinctOnExpressions,
       top: top,
@@ -850,10 +871,7 @@ struct SelectCoreParser {
       whereExpression: whereExpression,
       groupByExpressions: groupByExpressions,
       havingExpression: havingExpression,
-      qualifyExpression: qualifyExpression,
-      orderBy: orderBy,
-      limit: limit,
-      offset: offset
+      qualifyExpression: qualifyExpression
     )
   }
 
