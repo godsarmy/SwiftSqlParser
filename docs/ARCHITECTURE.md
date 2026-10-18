@@ -1,3 +1,19 @@
+---
+type: Architecture Guide
+title: SwiftSqlParser Architecture
+description: System design, parsing pipeline, option model, diagnostics, grammar metadata, and extension workflow.
+tags: [architecture, parser, internals]
+status: stable
+generated: { by: openai/gpt-5.6-terra, at: 2026-10-18T18:07:26Z }
+sources:
+  - id: readme
+    resource: ../README.md
+    title: Project README
+  - id: package
+    resource: ../Package.swift
+    title: Swift package manifest
+---
+
 # SwiftSqlParser Architecture
 
 ## Purpose

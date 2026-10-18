@@ -1,3 +1,19 @@
+---
+type: Compatibility Reference
+title: JSqlParser Parity Matrix
+description: High-level SwiftSqlParser feature and dialect parity tracking against JSqlParser capability claims.
+tags: [parity, compatibility, dialects]
+status: stable
+generated: { by: openai/gpt-5.6-terra, at: 2026-10-18T18:07:26Z }
+sources:
+  - id: readme
+    resource: ../README.md
+    title: Project README
+  - id: options
+    resource: ../Sources/SwiftSqlParser/Parser/ParserOptions.swift
+    title: Parser dialect and experimental options
+---
+
 # JSqlParser Parity Matrix
 
 This document tracks high-level feature parity against the JSqlParser capability claims.

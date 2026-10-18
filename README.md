@@ -104,7 +104,7 @@ printf "SELECT * FROM users\nGO\nSELECT * FROM roles\n" | swift run SwiftSqlPars
 
 ## Documentation
 
-- [`Docs/USAGE.md`](Docs/USAGE.md) - parser APIs, options, diagnostics, and examples
-- [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) - system design, parser pipeline, and extension workflow
-- [`Docs/PARITY.md`](Docs/PARITY.md) - current feature and dialect parity snapshot
+- [`docs/USAGE.md`](docs/USAGE.md) - parser APIs, options, diagnostics, and examples
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - system design, parser pipeline, and extension workflow
+- [`docs/PARITY.md`](docs/PARITY.md) - current feature and dialect parity snapshot
 - [`AGENTS.md`](AGENTS.md) - repository guidance for coding agents

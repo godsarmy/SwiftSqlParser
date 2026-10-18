@@ -64,7 +64,7 @@ Reimplement JSqlParser concepts in Swift with:
 1. Update `SqlParserAPI.swift` for top-level dispatch and script handling.
 2. Keep parse-error recovery and unsupported-statement recovery distinct and option-driven via `ParserOptions`.
 3. Add script-level diagnostics tests when delimiter handling or recovery changes.
-4. Update `Docs/USAGE.md` when behavior becomes user-visible.
+4. Update `docs/USAGE.md` when behavior becomes user-visible.
 
 ### Adding dialect-specific behavior
 
@@ -75,5 +75,5 @@ Reimplement JSqlParser concepts in Swift with:
 
 ## Reference Docs
 
-- `Docs/USAGE.md`
-- `Docs/ARCHITECTURE.md`
+- `docs/USAGE.md`
+- `docs/ARCHITECTURE.md`

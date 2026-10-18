@@ -1,3 +1,19 @@
+---
+type: User Guide
+title: SwiftSqlParser Usage
+description: Installation, parser APIs, configuration, diagnostics, traversal, deparsing, and usage examples.
+tags: [usage, api, parsing]
+status: stable
+generated: { by: openai/gpt-5.6-terra, at: 2026-10-18T18:07:26Z }
+sources:
+  - id: readme
+    resource: ../README.md
+    title: Project README
+  - id: parser-api
+    resource: ../Sources/SwiftSqlParser/Parser/SqlParserAPI.swift
+    title: Top-level parser API
+---
+
 # SwiftSqlParser Usage
 
 ## Install
@@ -371,7 +387,7 @@ This is the Swift equivalent of JSqlParser's build-and-deparse workflow.
 
 ## Supported SQL Surface
 
-For an explicit parity tracker against JSqlParser feature claims, see `Docs/PARITY.md`.
+For an explicit parity tracker against JSqlParser feature claims, see `docs/PARITY.md`.
 
 Current implemented families include:
 
